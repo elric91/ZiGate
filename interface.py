@@ -56,12 +56,81 @@ class ZiGate():
 				ddata += self.bxor_join(bytes([x]), b'\x10')
 			else:
 				ddata += bytes([x])
-		print('After decoding : ', binascii.hexlify(ddata))
-		print('MsgType		: ', binascii.hexlify(ddata[:2]))
-		print('MsgLength	: ', binascii.hexlify(ddata[2:4]))
-		print('RSSI		: ', binascii.hexlify(ddata[4:5]))
-		print('ChkSum		: ', binascii.hexlify(ddata[5:6]))
-		print('Data		: ', binascii.hexlify(ddata[6:]))
+		msg_data = ddata[6:]
+                # Do different things based on MsgType
+                # Device Announce
+		if binascii.hexlify(ddata[:2]) == b'004d':
+			print('This is Device Announce')
+			print('From address: ', binascii.hexlify(msg_data[:2]))
+			print('MAC address: ', binascii.hexlify(msg_data[2:10]))
+			print('MAC capability: ', binascii.hexlify(msg_data[10:11]))
+			print('Full data: ', binascii.hexlify(msg_data))
+		# Attribute Report
+		# Currentyly only support Xiaomi sensors. Other brands might calc things differently
+		elif binascii.hexlify(ddata[:2]) == b'8102':
+			sequence = binascii.hexlify(ddata[5:6])
+			attribute_size = int(binascii.hexlify(msg_data[9:11]), 16)  # Convert attribute size data to int
+			attribute_data = binascii.hexlify(msg_data[11:11+attribute_size])
+			attribute_id = binascii.hexlify(msg_data[5:7])
+			cluster_id = binascii.hexlify(msg_data[3:5])
+			print('This is Attribute Report')
+			if sequence == b'00':
+				print('Sensor type announce (Start after pairing 1)')
+			elif sequence == b'01':
+				print('Something announce (Start after pairing 2)')
+			# Which attribute
+			if cluster_id == b'0006':
+				print('General: On/Off')
+				if attribute_data == b'00':
+					print('Closedi/Taken off')
+				else:
+					print('Open')
+			elif cluster_id == b'0406':
+				print('Presence detection')  # Only sent when movement is detected
+			elif cluster_id == b'0402':
+				print('Measurement: Temperature'),
+				print('Value: ', int(attribute_data, 16) / 100, "°C")
+			elif cluster_id == b'0405':
+				print('Measurement: Humidity')
+				print('Value: ', int(attribute_data, 16) / 100, "%")
+			elif cluster_id == b'0403':
+				print('Atmospheric pressure')
+				if attribute_id in (b'0000', b'0010'):
+					print('Value: ', int(attribute_data, 16), "mb")
+				elif attribute_id == b'0014':
+					print('Value unknown')
+			elif cluster_id == b'0012':
+				if attribute_id == b'0055':
+					if attribute_data == b'0000':
+						print('Shaking')
+					elif attribute_data == b'0103':
+						print('Sliding')
+				
+			print('From address: ', binascii.hexlify(msg_data[:2]))
+			print('Source Ep: ', binascii.hexlify(msg_data[2:3]))
+			print('Cluster ID: ', cluster_id)
+			print('Attribute ID: ', attribute_id)
+			print('Attribute size: ', binascii.hexlify(msg_data[9:11]))
+			print('Attribute type: ', binascii.hexlify(msg_data[8:9]))
+			print('Attribute data: ', binascii.hexlify(msg_data[11:11+attribute_size]))
+			print('Full data: ', binascii.hexlify(msg_data))
+		# Route Discovery Confirmation
+		elif binascii.hexlify(ddata[:2]) == b'8701':
+			sequence = binascii.hexlify(ddata[5:6])
+			print('This is Route Discovery Confirmation')
+			print('Sequence: ', sequence)
+			print('Status: ', binascii.hexlify(msg_data[0:1]))
+			print('Network status: ', binascii.hexlify(msg_data[1:2]))
+			print('Full data: ', binascii.hexlify(msg_data))
+		# No handling for this type of message
+		else:
+			print('Unknown message')
+			print('After decoding : ', binascii.hexlify(ddata))
+			print('MsgType		: ', binascii.hexlify(ddata[:2]))
+			print('MsgLength	: ', binascii.hexlify(ddata[2:4]))
+			print('RSSI		: ', binascii.hexlify(ddata[4:5]))
+			print('ChkSum		: ', binascii.hexlify(ddata[5:6]))
+			print('Data		: ', binascii.hexlify(ddata[6:]))
 
 #	def interpret(self, msg_type, data):
 #		output = []
