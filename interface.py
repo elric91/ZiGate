@@ -2,7 +2,7 @@
 import serial
 import threading
 import binascii
-from time import sleep
+from time import (sleep, strftime)
 
 class ZiGate():
 
@@ -22,15 +22,17 @@ class ZiGate():
                 endpos = self.buffer.find(b'\x03')
                 if endpos != -1:
                     startpos = self.buffer.find(b'\x01')
-                    print('received data : ', binascii.hexlify(self.buffer[startpos:endpos + 1]))
+                    print('@%s received data : %s' % (strftime("%H:%M:%S"), \
+                                                       binascii.hexlify(self.buffer[startpos:endpos + 1])))
                     self.decode(self.buffer[startpos + 1:endpos])  # stripping starting 0x01 & ending 0x03
                     self.buffer = self.buffer[endpos + 1:]
 
-    def send_data(self, cmd, length, data):
+    def send_data(self, cmd, data=""):
 
         bcmd = bytes.fromhex(cmd)
-        blength = bytes.fromhex(length)
         bdata = bytes.fromhex(data)
+        length = int(len(data)/2)
+        blength = length.to_bytes(2, 'big')
 
         msg = [0x01]
         msg.extend(self.transcode(bcmd))
@@ -215,22 +217,22 @@ class ZiGate():
 
     def zigate(self, subcmd):
         if subcmd[0] == 'reset':
-            self.send_data("0011", "0001", "00")  # Zigate chip reset 
+            self.send_data("0011")  # Zigate chip reset 
         elif subcmd[0] == 'version':  
-            zigate.send_data("0010", "0000", "")
+            self.send_data("0010")
 
     def network(self, subcmd):
         if subcmd[0] == 'reset':
-            self.send_data("0024", "0000", "")
+            self.send_data("0024")
         elif subcmd[0] == 'scan':  
-            self.send_data("0025", "0000", "")
+            self.send_data("0025")
         elif subcmd[0] == 'permit_join':  
-            self.send_data("0014", "0000", "")
+            self.send_data("0014")
         elif subcmd[0] == 'restart':
-            self.send_data("0021", "0004", "00000800")  # Set Channel to mask
-            self.send_data("0023", "0000", "00")  # Set Device Type [Coordinator]
-            self.send_data("0024", "0000", "")  # Start Network
-            # self.send_data("0049", "0004", "FFFCFE00")
+            self.send_data("0021", "00000800")  # Set Channel to mask
+            self.send_data("0023")  # Set Device Type [Coordinator]
+            self.send_data("0024")  # Start Network
+            # self.send_data("0049", "FFFCFE00")
 
 
 commands = {'help':'This help', 
