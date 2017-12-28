@@ -2,14 +2,17 @@
 import serial
 import threading
 import binascii
-
+from time import sleep
 
 class ZiGate():
 
     def __init__(self, device="/dev/ttyUSB0"):
         self.conn = serial.Serial(device, 115200, timeout=0)
         self.buffer = b''
-        threading.Thread(target=self.read_data).start()
+        self.thread = threading.Thread(target=self.read_data).start()
+
+    def stop(self):
+        self.conn.close()
 
     def read_data(self):
         while (True):
@@ -210,14 +213,48 @@ class ZiGate():
 
         return tmp
 
-    def reset(self):
-        self.send_data("0021", "0004", "00000800")  # Set Channel Mask
-        self.send_data("0023", "0001", "00")  # Set Device Type [Router]
-        self.send_data("0024", "0000", "")  # Start Network
-        self.send_data("0049", "0004", "FFFCFE00")
+    def zigate(self, subcmd):
+        if subcmd[0] == 'reset':
+            self.send_data("0011", "0001", "00")  # Zigate chip reset 
+        elif subcmd[0] == 'version':  
+            zigate.send_data("0010", "0000", "")
+
+    def network(self, subcmd):
+        if subcmd[0] == 'reset':
+            self.send_data("0024", "0000", "")
+        elif subcmd[0] == 'scan':  
+            self.send_data("0025", "0000", "")
+        elif subcmd[0] == 'permit_join':  
+            self.send_data("0014", "0000", "")
+        elif subcmd[0] == 'full_reset':
+            self.send_data("0021", "0004", "00000800")  # Set Channel Mask
+            self.send_data("0023", "0001", "00")  # Set Device Type [Router]
+            self.send_data("0024", "0000", "")  # Start Network
+            self.send_data("0049", "0004", "FFFCFE00")
+
+
+commands = {'help':'This help', 
+            'exit':'Quit', 
+            'quit':'Same as exit', 
+            'zigate':'reset / version',
+            'network':'reset / scan / permit_join / full_reset',
+           }
 
 if __name__ == "__main__":
     zigate = ZiGate()
-    zigate.send_data("0010", "0000", "")
-    zigate.reset()
-
+    while True:
+        cmd = input('>').strip().split(' ')
+         
+        if cmd[0] in ('exit', 'quit'):
+            print('exiting ...')
+            zigate.stop()
+            raise SystemExit
+        elif cmd[0] == 'help':
+           for c in commands.keys():
+               print('%s : %s' % (c, commands[c]))
+        elif cmd[0] in commands.keys():
+            func = getattr(zigate, cmd[0])
+            func(cmd[1:])
+        else:
+            print("Command '%s' unkown !" % ' '.join(cmd))
+        sleep(1)
