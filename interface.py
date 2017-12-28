@@ -129,9 +129,9 @@ class ZiGate():
         attribute_id = binascii.hexlify(msg_data[5:7])
         cluster_id = binascii.hexlify(msg_data[3:5])
         print('This is Attribute Report')
-        if sequence == b'00':
+        if self.sequence == b'00':
             print('Sensor type announce (Start after pairing 1)')
-        elif sequence == b'01':
+        elif self.sequence == b'01':
             print('Something announce (Start after pairing 2)')
         # Which attribute
         if cluster_id == b'0006':
@@ -226,11 +226,11 @@ class ZiGate():
             self.send_data("0025", "0000", "")
         elif subcmd[0] == 'permit_join':  
             self.send_data("0014", "0000", "")
-        elif subcmd[0] == 'full_reset':
-            self.send_data("0021", "0004", "00000800")  # Set Channel Mask
-            self.send_data("0023", "0001", "00")  # Set Device Type [Router]
+        elif subcmd[0] == 'restart':
+            self.send_data("0021", "0004", "00000800")  # Set Channel to mask
+            self.send_data("0023", "0000", "00")  # Set Device Type [Coordinator]
             self.send_data("0024", "0000", "")  # Start Network
-            self.send_data("0049", "0004", "FFFCFE00")
+            # self.send_data("0049", "0004", "FFFCFE00")
 
 
 commands = {'help':'This help', 
