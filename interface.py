@@ -93,7 +93,17 @@ class ZiGate():
 
         return tmp
 
+    def set_device_property(self, addr, property_id, property_data):
+        """
+        log property / attribute value in a device based dictionnary
+        please note that short addr is not stable if device is reset (still have to find the unique ID)
+        """
+        if not addr in self.devices:
+            self.devices[addr] = {}
+        self.devices[addr][property_id] = property_data
+
     def read_data(self):
+        """Read ZiGate output and split messages"""
         while (True):
             bytesavailable = self.conn.inWaiting()
             if (bytesavailable > 0):
@@ -109,7 +119,7 @@ class ZiGate():
                     self.buffer = self.buffer[endpos + 1:]
 
     def send_data(self, cmd, data=""):
-
+        """send data through ZiGate"""
         byte_cmd = bytes.fromhex(cmd)
         byte_data = bytes.fromhex(data)
         length = int(len(data)/2)
@@ -142,7 +152,7 @@ class ZiGate():
         self.conn.write(encoded_output)
 
     def interpret_data(self, data):
-
+        """Interpret responses attributes"""
         msg_data = data[6:]
         # Do different things based on MsgType
         # Device Announce
@@ -190,7 +200,12 @@ class ZiGate():
         # Attribute Report
         # Currently only support Xiaomi sensors. Other brands might calc things differently
         elif binascii.hexlify(data[:2]) == b'8102':
-            self.interpret_attribute(data, msg_data)
+            sequence = binascii.hexlify(data[5:6])
+            if sequence == b'00':
+                print('    * Sensor type announce (Start after pairing 1)')
+            elif sequence == b'01':
+                print('    * Something announce (Start after pairing 2)')
+            self.interpret_attribute(msg_data)
         # Route Discovery Confirmation
         elif binascii.hexlify(data[:2]) == b'8701':
             sequence = binascii.hexlify(data[5:6])
@@ -209,14 +224,7 @@ class ZiGate():
             print('   * ChkSum		: ', binascii.hexlify(data[5:6]))
             print('   * Data		: ', binascii.hexlify(data[6:]))
 
-    def set_device_property(self, addr, property_id, property_data):
-        if not addr in self.devices:
-            self.devices[addr] = {}
-        self.devices[addr][property_id] = property_data
-
-
-    def interpret_attribute(self, data, msg_data):
-        sequence = binascii.hexlify(data[5:6])
+    def interpret_attribute(self, msg_data):
         device_addr = binascii.hexlify(msg_data[:2])
         attribute_size = int(binascii.hexlify(msg_data[9:11]), 16)  # Convert attribute size data to int
         attribute_data = binascii.hexlify(msg_data[11:11 + attribute_size])
@@ -224,10 +232,6 @@ class ZiGate():
         cluster_id = binascii.hexlify(msg_data[3:5])
         print('  - This is Attribute Report')
         self.set_device_property(device_addr, (cluster_id,attribute_id), attribute_data) # register technical value
-        if sequence == b'00':
-            print('    * Sensor type announce (Start after pairing 1)')
-        elif sequence == b'01':
-            print('    * Something announce (Start after pairing 2)')
         # Which attribute
         if cluster_id == b'0000':
             if attribute_id == b'0005':
@@ -294,26 +298,6 @@ class ZiGate():
             for k,v in self.devices[addr].items():
                 print('    * ', k, ' : ', v) 
         print('-- DEVICE REPORT - END -------------------')
-
-    def zigate(self, subcmd):
-        if subcmd[0] == 'reset':
-            self.send_data("0011")  # Zigate chip reset 
-        elif subcmd[0] == 'version':  
-            self.send_data("0010")
-
-    def network(self, subcmd):
-        if subcmd[0] == 'reset':
-            self.send_data("0024")
-        elif subcmd[0] == 'scan':  
-            self.send_data("0025")
-        elif subcmd[0] == 'permit_join':  
-            self.send_data("0014")
-        elif subcmd[0] == 'restart':
-            self.send_data("0021", "00000800")  # Set Channel to mask
-            self.send_data("0023")  # Set Device Type [Coordinator]
-            self.send_data("0024")  # Start Network
-            # self.send_data("0049", "FFFCFE00")
-
 
 if __name__ == "__main__":
     zigate = ZiGate()
