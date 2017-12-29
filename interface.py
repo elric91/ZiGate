@@ -156,8 +156,9 @@ class ZiGate():
         msg_data = data[6:]
         # Do different things based on MsgType
         # Device Announce
+        device_addr = binascii.hexlify(msg_data[:2])
+        self.set_device_property(device_addr, 'last seen', strftime("%Y-%m-%d %H:%M:%S"))
         if binascii.hexlify(data[:2]) == b'004d':
-            device_addr = binascii.hexlify(msg_data[:2])
             self.set_device_property(device_addr, 'MAC', binascii.hexlify(msg_data[2:10]))
             print('  - This is Device Announce')
             print('    * From address: ', device_addr)
@@ -276,7 +277,7 @@ class ZiGate():
                 print('    * Value unknown')
         elif cluster_id == b'0405':
             humidity = int(attribute_data, 16) / 100
-            self.set_device_property(device_addr, 'Humidity', int(attribute_data, 16))
+            self.set_device_property(device_addr, 'Humidity', humidity)
             print('    * Measurement: Humidity')
             print('    * Value: ', humidity, "%")
         elif cluster_id == b'0406':
