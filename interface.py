@@ -4,17 +4,45 @@ import threading
 import binascii
 from time import (sleep, strftime)
 
+
+CLUSTERS = {b'0000':'General: Basic',
+            b'0001':'General: Power Config',
+            b'0002':'General: Temperature Config',
+            b'0003':'General: Identify',
+            b'0004':'General: Groups',
+            b'0005':'General: Scenes',
+            b'0006':'General: On/Off',
+            b'0007':'General: On/Off Config',
+            b'0008':'General: Level Control',
+            b'0009':'General: Alarms',
+            b'000A':'General: Time',
+            b'000F':'General: Binary Input Basic',
+            b'0020':'General: Poll Control',
+            b'0019':'General: OTA',
+            b'0101':'General: Door Lock',
+            b'0201':'HVAC: Thermostat',
+            b'0202':'HVAC: Fan Control',
+            b'0300':'Lighting: Color Control',
+            b'0400':'Measurement: Illuminance',
+            b'0402':'Measurement: Temperature',
+            b'0403':'Measurement: Pression atmosphérique',
+            b'0405':'Measurement: Humidity',
+            b'0406':'Measurement: Occupancy Sensing',
+            b'0500':'Security & Safety: IAS Zone',
+            b'0702':'Smart Energy: Metering',
+            b'0B05':'Misc: Diagnostics',
+            b'1000':'ZLL: Commissioning',
+            b'FF01':'Xiaomi private',
+            b'FF02':'Xiaomi private'
+          }
+
 class ZiGate():
 
     def __init__(self, device="/dev/ttyUSB0"):
         self.conn = serial.Serial(device, 115200, timeout=0)
         self.buffer = b''
         self.thread = threading.Thread(target=self.read_data).start()
-        self.devices = []
-
-    def stop(self):
-        self.conn.close()
-
+        self.devices = {}
 
     @staticmethod
     def zigate_encode(data):
@@ -77,7 +105,7 @@ class ZiGate():
                     print('RESPONSE (@timestamp : ', strftime("%H:%M:%S"), ')')
                     print('  - encoded : ', binascii.hexlify(self.buffer[startpos:endpos + 1]))
                     print('  - decoded : 01', ' '.join([format(x, '02x') for x in data_to_decode]).upper(),'03') 
-                    self.interpret(data_to_decode)  # stripping starting 0x01 & ending 0x03
+                    self.interpret_data(data_to_decode)  # stripping starting 0x01 & ending 0x03
                     self.buffer = self.buffer[endpos + 1:]
 
     def send_data(self, cmd, data=""):
@@ -113,14 +141,16 @@ class ZiGate():
         print('--------------------------------------')
         self.conn.write(encoded_output)
 
-    def interpret(self, data):
+    def interpret_data(self, data):
 
         msg_data = data[6:]
         # Do different things based on MsgType
         # Device Announce
         if binascii.hexlify(data[:2]) == b'004d':
+            device_addr = binascii.hexlify(msg_data[:2])
+            self.set_device_property(device_addr, 'MAC', binascii.hexlify(msg_data[2:10]))
             print('  - This is Device Announce')
-            print('    * From address: ', binascii.hexlify(msg_data[:2]))
+            print('    * From address: ', device_addr)
             print('    * MAC address: ', binascii.hexlify(msg_data[2:10]))
             print('    * MAC capability: ', binascii.hexlify(msg_data[10:11]))
             print('    * Full data: ', binascii.hexlify(msg_data))
@@ -160,7 +190,7 @@ class ZiGate():
         # Attribute Report
         # Currently only support Xiaomi sensors. Other brands might calc things differently
         elif binascii.hexlify(data[:2]) == b'8102':
-            self.interpret_xiaomi(data, msg_data)
+            self.interpret_attribute(data, msg_data)
         # Route Discovery Confirmation
         elif binascii.hexlify(data[:2]) == b'8701':
             sequence = binascii.hexlify(data[5:6])
@@ -179,19 +209,32 @@ class ZiGate():
             print('   * ChkSum		: ', binascii.hexlify(data[5:6]))
             print('   * Data		: ', binascii.hexlify(data[6:]))
 
-    def interpret_xiaomi(self, ddata, msg_data):
-        self.sequence = binascii.hexlify(ddata[5:6])
+    def set_device_property(self, addr, property_id, property_data):
+        if not addr in self.devices:
+            self.devices[addr] = {}
+        self.devices[addr][property_id] = property_data
+
+
+    def interpret_attribute(self, data, msg_data):
+        sequence = binascii.hexlify(data[5:6])
+        device_addr = binascii.hexlify(msg_data[:2])
         attribute_size = int(binascii.hexlify(msg_data[9:11]), 16)  # Convert attribute size data to int
         attribute_data = binascii.hexlify(msg_data[11:11 + attribute_size])
         attribute_id = binascii.hexlify(msg_data[5:7])
         cluster_id = binascii.hexlify(msg_data[3:5])
         print('  - This is Attribute Report')
-        if self.sequence == b'00':
+        self.set_device_property(device_addr, (cluster_id,attribute_id), attribute_data) # register technical value
+        if sequence == b'00':
             print('    * Sensor type announce (Start after pairing 1)')
-        elif self.sequence == b'01':
+        elif sequence == b'01':
             print('    * Something announce (Start after pairing 2)')
         # Which attribute
-        if cluster_id == b'0006':
+        if cluster_id == b'0000':
+            if attribute_id == b'0005':
+                device_type = binascii.unhexlify(attribute_data)
+                self.set_device_property(device_addr, 'Type', device_type)
+                print('   * type : ', device_type)
+        elif cluster_id == b'0006':
             print('    * General: On/Off')
             if attribute_id == b'0000':
                 if attribute_data == b'00':
@@ -213,35 +256,44 @@ class ZiGate():
                 elif attribute_data == b'0103':
                     print('    * Sliding')
         elif cluster_id == b'0402':
+            temperature = int(attribute_data, 16) / 100
+            self.set_device_property(device_addr, 'Temperature', temperature)
             print('    * Measurement: Temperature'),
-            print('    * Value: ', int(attribute_data, 16) / 100, "°C")
+            print('    * Value: ', temperature, "°C")
         elif cluster_id == b'0403':
             print('    * Atmospheric pressure')
-            if attribute_id in (b'0000', b'0010'):
+            if attribute_id == b'0000':
+                self.set_device_property(device_addr, 'Pressure', int(attribute_data, 16))
                 print('    * Value: ', int(attribute_data, 16), "mb")
+            elif attribute_id == b'0010':
+                self.set_device_property(device_addr, 'Pressure - detailed', int(attribute_data, 16)/10)
+                print('    * Value: ', int(attribute_data, 16)/10, "mb")
             elif attribute_id == b'0014':
                 print('    * Value unknown')
         elif cluster_id == b'0405':
+            humidity = int(attribute_data, 16) / 100
+            self.set_device_property(device_addr, 'Humidity', int(attribute_data, 16))
             print('    * Measurement: Humidity')
-            print('    * Value: ', int(attribute_data, 16) / 100, "%")
+            print('    * Value: ', humidity, "%")
         elif cluster_id == b'0406':
             print('   * Presence detection')  # Only sent when movement is detected
 
-        print('  - From address: ', binascii.hexlify(msg_data[:2]))
+        print('  - From address: ', device_addr)
         print('  - Source Ep: ', binascii.hexlify(msg_data[2:3]))
         print('  - Cluster ID: ', cluster_id)
         print('  - Attribute ID: ', attribute_id)
         print('  - Attribute size: ', binascii.hexlify(msg_data[9:11]))
         print('  - Attribute type: ', binascii.hexlify(msg_data[8:9]))
-        print('  - Attribute data: ', binascii.hexlify(msg_data[11:11 + attribute_size]))
+        print('  - Attribute data: ', attribute_data)
         print('  - Full data: ', binascii.hexlify(msg_data))
 
-
-
     def list_devices(self):
-        for dev in self.devices:
-            print("ID: %s - type %s" % (dev.address, dev.type))
-
+        print('-- DEVICE REPORT -------------------------')
+        for addr in self.devices.keys():
+            print('- addr : ', addr)
+            for k,v in self.devices[addr].items():
+                print('    * ', k, ' : ', v) 
+        print('-- DEVICE REPORT - END -------------------')
 
     def zigate(self, subcmd):
         if subcmd[0] == 'reset':
@@ -263,44 +315,5 @@ class ZiGate():
             # self.send_data("0049", "FFFCFE00")
 
 
-class endpoint():
-    
-    def __init__(self, short_address):
-      self._address = short_address
-      self._type = 'unknown'
-
-    @property
-    def type(self):
-        return self._type
-
-    @property
-    def address(self):
-        return self._address
-
-
-
-commands = {'help':'This help', 
-            'exit':'Quit', 
-            'quit':'Same as exit', 
-            'zigate':'reset / version',
-            'network':'reset / scan / permit_join / full_reset',
-           }
-
 if __name__ == "__main__":
     zigate = ZiGate()
-    while True:
-        cmd = input('>').strip().split(' ')
-         
-        if cmd[0] in ('exit', 'quit'):
-            print('exiting ...')
-            zigate.stop()
-            raise SystemExit
-        elif cmd[0] == 'help':
-           for c in commands.keys():
-               print('%s : %s' % (c, commands[c]))
-        elif cmd[0] in commands.keys():
-            func = getattr(zigate, cmd[0])
-            func(cmd[1:])
-        else:
-            print("Command '%s' unkown !" % ' '.join(cmd))
-        sleep(1)
