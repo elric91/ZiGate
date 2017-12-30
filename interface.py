@@ -115,10 +115,10 @@ class ZiGate():
                 if endpos != -1:
                     startpos = self.buffer.find(b'\x01')
                     data_to_decode = self.zigate_decode(self.buffer[startpos + 1:endpos])
-                    print('RESPONSE (@timestamp : ', strftime("%H:%M:%S"), ')')
-                    print('  - encoded : ', binascii.hexlify(self.buffer[startpos:endpos + 1]))
-                    print('  - decoded : 01', ' '.join([format(x, '02x') for x in data_to_decode]).upper(),'03') 
                     self.interpret_data(data_to_decode)  # stripping starting 0x01 & ending 0x03
+                    print('  # encoded : ', binascii.hexlify(self.buffer[startpos:endpos + 1]))
+                    print('  # decoded : 01', ' '.join([format(x, '02x') for x in data_to_decode]).upper(),'03')
+                    print('  (@timestamp : ', strftime("%H:%M:%S"), ')')
                     self.buffer = self.buffer[endpos + 1:]
 
     def send_data(self, cmd, data=""):
@@ -148,8 +148,8 @@ class ZiGate():
         encoded_output = b''.join([bytes([x]) for x in enc_msg])
         print('--------------------------------------')
         print('REQUEST      : ', cmd, " ", data)
-        print('  - standard : ', ' '.join([format(x, '02x') for x in std_output]).upper())
-        print('  - encoded  : ', binascii.hexlify(encoded_output))
+        print('  # standard : ', ' '.join([format(x, '02x') for x in std_output]).upper())
+        print('  # encoded  : ', binascii.hexlify(encoded_output))
         print('(timestamp : ', strftime("%H:%M:%S"), ')')
         print('--------------------------------------')
         self.conn.write(encoded_output)
@@ -160,15 +160,17 @@ class ZiGate():
         msg_type = binascii.hexlify(data[:2])
 
         # Do different things based on MsgType
+        print('--------------------------------------')
         # Device Announce
         if binascii.hexlify(data[:2]) == b'004d':
             device_addr = binascii.hexlify(msg_data[:2])
             self.set_device_property(device_addr, 'MAC', binascii.hexlify(msg_data[2:10]))
-            print('  - RESPONSE 004d : Device Announce')
-            print('    * From address: ', device_addr)
-            print('    * MAC address: ', binascii.hexlify(msg_data[2:10]))
-            print('    * MAC capability: ', binascii.hexlify(msg_data[10:11]))
-            print('    * Full data: ', binascii.hexlify(msg_data))
+            print('RESPONSE 004d : Device Announce')
+            print('  * From address   : ', device_addr)
+            print('  * MAC address    : ', binascii.hexlify(msg_data[2:10]))
+            print('  * MAC capability : ', binascii.hexlify(msg_data[10:11]))
+            print('  * Message data   : ', binascii.hexlify(msg_data))
+        
         # Status
         elif msg_type == b'8000':
             status_code = int(binascii.hexlify(data[5:6]), 16)
@@ -188,52 +190,87 @@ class ZiGate():
                 status_text = 'Failed with event code: %i' % status_code
             else:
                 status_text = 'Unknown'
-            print('  - RESPONSE 8000 : Status')
-            print('    * Status: ', status_text)
-            print('    * Sequence: ', binascii.hexlify(data[6:7]))
-            print('    * Response to command: ', binascii.hexlify(data[7:9]))
+            print('RESPONSE 8000 : Status')
+            print('  * Status: ', status_text)
+            print('  - Sequence: ', binascii.hexlify(data[6:7]))
+            print('  - Response to command: ', binascii.hexlify(data[7:9]))
             if binascii.hexlify(data[9:]) != b'00':
-                print('  *Additional msg: ', binascii.hexlify(data[9:])) 
+                print('  - Additional msg: ', binascii.hexlify(data[9:])) 
+        
         # Default Response
         elif msg_type == b'8001':
             log_level = int(binascii.hexlify(msg_data[:2]), 16)
-            print(' - RESPONSE 8001 : Log Message')
-            print('   *  : Log level ', LOG_LEVELS[log_level])
-            print('   *  : ', binascii.hexlify(msg_data))
-        # Version list
+            print('RESPONSE 8001 : Log Message')
+            print('  - Log Level : Log level ', LOG_LEVELS[log_level])
+            print('  - Log Info  : ', binascii.hexlify(msg_data))
+        
+        # Version List
         elif msg_type == b'8010':
-            print(' - RESPONSE : Version List')
-            print('   * Major version : ', binascii.hexlify(data[6:8]))
-            print('   * Installer version : ', binascii.hexlify(data[8:10]))
-        # Endpoint list
+            print('RESPONSE : Version List')
+            print('  - Major version : ', binascii.hexlify(data[6:8]))
+            print('  - Installer version : ', binascii.hexlify(data[8:10]))
+        
+        # Cluster List
+        elif msg_type == b'8043':
+            print('RESPONSE 8043 : Cluster List')
+            print('  - Sequence          : ', binascii.hexlify(data[5:6]))
+            print('  - Status            : ', binascii.hexlify(data[6:7]))
+            print('  - From address      : ', binascii.hexlify(data[7:9]))
+            print('  - Length            : ', binascii.hexlify(data[9:10]))
+            print('  - EndPoint          : ', binascii.hexlify(data[10:11]))
+            print('  - Profile ID        : ', binascii.hexlify(data[11:13]))
+            print('  - Device ID         : ', binascii.hexlify(data[13:15]))
+            cluster_in = int(binascii.hexlify(data[16:17]),16)
+            print('  - IN cluster count  : ', cluster_in)
+            for i in range(17, 17 + cluster_in*2, 2):
+                cluster_id = binascii.hexlify(data[i:i+2])
+                print('    - Cluster %s : %s (%s)' %(i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+            cluster_out = int(binascii.hexlify(data[17+cluster_in*2:18+cluster_in*2]),16)
+            print('  - OUT cluster count : ', cluster_out)
+            for i in range(18+cluster_in*2, 18+cluster_in*2+cluster_out*2, 2):
+                cluster_id = binascii.hexlify(data[i:i+2])
+                print('    - Cluster %s : %s (%s)' %(i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+
+
+        # Endpoint List
         elif msg_type == b'8045':
-            print(' - RESPONSE 8045 : Active Endpoint')
-            print('   * Sequence : ', binascii.hexlify(data[6:8]))
+            print('RESPONSE 8045 : Active Endpoints List')
+            print('  - Sequence       : ', binascii.hexlify(data[5:6]))
+            print('  - Status         : ', binascii.hexlify(data[6:7]))
+            print('  - From address   : ', binascii.hexlify(data[7:9]))
+            print('  - EndPoint count : ', int(binascii.hexlify(data[9:10]),16))
+            print('  - EndPoints      : ', binascii.hexlify(data[10:-1]))
+            for i,ep in enumerate(data[10:-1]):
+                print('    * EndPoint %s : %s' % (i, ep))
+
         # Currently only support Xiaomi sensors. Other brands might calc things differently
         elif msg_type == b'8102':
             sequence = binascii.hexlify(data[5:6])
-            print('  - RESPONSE 8102 : Attribute Report')
+            print('RESPONSE 8102 : Attribute Report')
             if sequence == b'00':
-                print('    * Sensor type announce (Start after pairing 1)')
+                print('  - Sensor type announce (Start after pairing 1)')
             elif sequence == b'01':
-                print('    * Something announce (Start after pairing 2)')
+                print('  - Something announce (Start after pairing 2)')
             self.interpret_attribute(msg_data)
+
         # Route Discovery Confirmation
         elif msg_type == b'8701':
-            print(' - RESPONSE 8701: Route Discovery Confirmation')
-            print('   * Sequence: ', binascii.hexlify(data[5:6]))
-            print('   * Status: ', binascii.hexlify(msg_data[0:1]))
-            print('   * Network status: ', binascii.hexlify(msg_data[1:2]))
-            print('   * Full data: ', binascii.hexlify(msg_data))
+            print('RESPONSE 8701: Route Discovery Confirmation')
+            print('  - Sequence       : ', binascii.hexlify(data[5:6]))
+            print('  - Status         : ', binascii.hexlify(msg_data[0:1]))
+            print('  - Network status : ', binascii.hexlify(msg_data[1:2]))
+            print('  - Message data   : ', binascii.hexlify(msg_data))
+        
         # No handling for this type of message
         else:
-            print(' - RESPONSE : Unknown Message')
-            print('   * After decoding  : ', binascii.hexlify(data))
-            print('   * MsgType         : ', msg_type)
-            print('   * MsgLength       : ', binascii.hexlify(data[2:4]))
-            print('   * RSSI            : ', binascii.hexlify(data[4:5]))
-            print('   * ChkSum          : ', binascii.hexlify(data[5:6]))
-            print('   * Data            : ', binascii.hexlify(msg_data))
+            print('RESPONSE : Unknown Message')
+            print('  - After decoding  : ', binascii.hexlify(data))
+            print('  - MsgType         : ', msg_type)
+            print('  - MsgLength       : ', binascii.hexlify(data[2:4]))
+            print('  - RSSI            : ', binascii.hexlify(data[4:5]))
+            print('  - ChkSum          : ', binascii.hexlify(data[5:6]))
+            print('  - Data            : ', binascii.hexlify(msg_data))
+
 
     def interpret_attribute(self, msg_data):
         device_addr = binascii.hexlify(msg_data[:2])
@@ -249,59 +286,59 @@ class ZiGate():
             if attribute_id == b'0005':
                 device_type = binascii.unhexlify(attribute_data)
                 self.set_device_property(device_addr, 'Type', device_type)
-                print('   * type : ', device_type)
+                print(' * type : ', device_type)
         elif cluster_id == b'0006':
-            print('    * General: On/Off')
+            print('  * General: On/Off')
             if attribute_id == b'0000':
                 if attribute_data == b'00':
-                    print('    * Closed/Taken off/Press')
+                    print('  * Closed/Taken off/Press')
                 else:
-                    print('    * Open/Release button')
+                    print('  * Open/Release button')
             elif attribute_id == b'8000':
-                print('    * Multi click')
-                print('    * Pressed: ', int(attribute_data, 16), " times")
+                print('  * Multi click')
+                print('  * Pressed: ', int(attribute_data, 16), " times")
         elif cluster_id == b'000c':  # Unknown cluster id
-            print('    * Rotation horizontal')
+            print('  * Rotation horizontal')
         elif cluster_id == b'0012':  # Unknown cluster id
             if attribute_id == b'0055':
                 if attribute_data == b'0000':
-                    print('    * Shaking')
+                    print('  * Shaking')
                 elif attribute_data == b'0055':
-                    print('    * Rotating vertical')
-                    print('    * Rotated: ', int(attribute_data, 16), "°")
+                    print('  * Rotating vertical')
+                    print('  * Rotated: ', int(attribute_data, 16), "°")
                 elif attribute_data == b'0103':
-                    print('    * Sliding')
+                    print('  * Sliding')
         elif cluster_id == b'0402':
             temperature = int(attribute_data, 16) / 100
             self.set_device_property(device_addr, 'Temperature', temperature)
-            print('    * Measurement: Temperature'),
-            print('    * Value: ', temperature, "°C")
+            print('  * Measurement: Temperature'),
+            print('  * Value: ', temperature, "°C")
         elif cluster_id == b'0403':
-            print('    * Atmospheric pressure')
+            print('  * Atmospheric pressure')
             if attribute_id == b'0000':
                 self.set_device_property(device_addr, 'Pressure', int(attribute_data, 16))
-                print('    * Value: ', int(attribute_data, 16), "mb")
+                print('  * Value: ', int(attribute_data, 16), "mb")
             elif attribute_id == b'0010':
                 self.set_device_property(device_addr, 'Pressure - detailed', int(attribute_data, 16)/10)
-                print('    * Value: ', int(attribute_data, 16)/10, "mb")
+                print('  * Value: ', int(attribute_data, 16)/10, "mb")
             elif attribute_id == b'0014':
-                print('    * Value unknown')
+                print('  * Value unknown')
         elif cluster_id == b'0405':
             humidity = int(attribute_data, 16) / 100
             self.set_device_property(device_addr, 'Humidity', humidity)
-            print('    * Measurement: Humidity')
-            print('    * Value: ', humidity, "%")
+            print('  * Measurement: Humidity')
+            print('  * Value: ', humidity, "%")
         elif cluster_id == b'0406':
             print('   * Presence detection')  # Only sent when movement is detected
 
-        print('  - From address: ', device_addr)
-        print('  - Source Ep: ', binascii.hexlify(msg_data[2:3]))
-        print('  - Cluster ID: ', cluster_id)
-        print('  - Attribute ID: ', attribute_id)
-        print('  - Attribute size: ', binascii.hexlify(msg_data[9:11]))
-        print('  - Attribute type: ', binascii.hexlify(msg_data[8:9]))
-        print('  - Attribute data: ', attribute_data)
-        print('  - Full data: ', binascii.hexlify(msg_data))
+        print('  FROM ADDRESS      : ', device_addr)
+        print('  - Source EndPoint : ', binascii.hexlify(msg_data[2:3]))
+        print('  - Cluster ID      : ', cluster_id)
+        print('  - Attribute ID    : ', attribute_id)
+        print('  - Attribute size  : ', binascii.hexlify(msg_data[9:11]))
+        print('  - Attribute type  : ', binascii.hexlify(msg_data[8:9]))
+        print('  - Attribute data  : ', attribute_data)
+        print('  - Message data    : ', binascii.hexlify(msg_data))
 
     def list_devices(self):
         print('-- DEVICE REPORT -------------------------')
