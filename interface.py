@@ -25,7 +25,7 @@ CLUSTERS = {b'0000':'General: Basic',
             b'0300':'Lighting: Color Control',
             b'0400':'Measurement: Illuminance',
             b'0402':'Measurement: Temperature',
-            b'0403':'Measurement: Pression atmosphérique',
+            b'0403':'Measurement: Atmospheric Pressure',
             b'0405':'Measurement: Humidity',
             b'0406':'Measurement: Occupancy Sensing',
             b'0500':'Security & Safety: IAS Zone',
@@ -35,6 +35,9 @@ CLUSTERS = {b'0000':'General: Basic',
             b'FF01':'Xiaomi private',
             b'FF02':'Xiaomi private'
           }
+
+LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Information', 'Debug']
+
 
 class ZiGate():
 
@@ -154,11 +157,12 @@ class ZiGate():
     def interpret_data(self, data):
         """Interpret responses attributes"""
         msg_data = data[6:]
+        msg_type = binascii.hexlify(data[:2])
+
         # Do different things based on MsgType
         # Device Announce
-        device_addr = binascii.hexlify(msg_data[:2])
-        self.set_device_property(device_addr, 'last seen', strftime("%Y-%m-%d %H:%M:%S"))
         if binascii.hexlify(data[:2]) == b'004d':
+            device_addr = binascii.hexlify(msg_data[:2])
             self.set_device_property(device_addr, 'MAC', binascii.hexlify(msg_data[2:10]))
             print('  - This is Device Announce')
             print('    * From address: ', device_addr)
@@ -166,7 +170,7 @@ class ZiGate():
             print('    * MAC capability: ', binascii.hexlify(msg_data[10:11]))
             print('    * Full data: ', binascii.hexlify(msg_data))
         # Status
-        elif binascii.hexlify(data[:2]) == b'8000':
+        elif msg_type == b'8000':
             status_code = int(binascii.hexlify(data[5:6]), 16)
             if status_code == 0:
                 status_text = 'Success'
@@ -184,46 +188,51 @@ class ZiGate():
                 status_text = 'Failed with event code: %i' % status_code
             else:
                 status_text = 'Unknown'
-            print('  - This is Status [%s]' % status_text)
+            print('  - RESPONSE 8000 : Status')
+            print('    * Sequence: ', status_text)
             print('    * Sequence: ', binascii.hexlify(data[6:7]))
             print('    * Response to command: ', binascii.hexlify(data[7:9]))
             if binascii.hexlify(data[9:]) != b'00':
-                print('  *Additional msg: ', binascii.hexlify(data[9:]))  # Bin to Hex
+                print('  *Additional msg: ', binascii.hexlify(data[9:])) 
         # Default Response
-        elif binascii.hexlify(data[:2]) == b'8001':
-            print(' - This is Default Response')
-            print('   * After decoding : ', binascii.hexlify(data))
+        elif msg_type == b'8001':
+            log_level = int(binascii.hexlify(msg_data[:2]), 16)
+            print(' - RESPONSE 8001 : Log Message')
+            print('   *  : Log level ', LOG_LEVELS[log_level])
+            print('   *  : ', binascii.hexlify(msg_data))
         # Version list
-        elif binascii.hexlify(data[:2]) == b'8010':
-            print(' - This is version list')
+        elif msg_type == b'8010':
+            print(' - RESPONSE : Version List')
             print('   * Major version : ', binascii.hexlify(data[6:8]))
             print('   * Installer version : ', binascii.hexlify(data[8:10]))
-        # Attribute Report
+        # Endpoint list
+        elif msg_type == b'8045':
+            pass
         # Currently only support Xiaomi sensors. Other brands might calc things differently
-        elif binascii.hexlify(data[:2]) == b'8102':
+        elif msg_type == b'8102':
             sequence = binascii.hexlify(data[5:6])
+            print('  - RESPONSE 8102 : Attribute Report')
             if sequence == b'00':
                 print('    * Sensor type announce (Start after pairing 1)')
             elif sequence == b'01':
                 print('    * Something announce (Start after pairing 2)')
             self.interpret_attribute(msg_data)
         # Route Discovery Confirmation
-        elif binascii.hexlify(data[:2]) == b'8701':
-            sequence = binascii.hexlify(data[5:6])
-            print(' - This is Route Discovery Confirmation')
-            print('   * Sequence: ', sequence)
+        elif msg_type == b'8701':
+            print(' - RESPONSE 8701: Route Discovery Confirmation')
+            print('   * Sequence: ', binascii.hexlify(data[5:6]))
             print('   * Status: ', binascii.hexlify(msg_data[0:1]))
             print('   * Network status: ', binascii.hexlify(msg_data[1:2]))
             print('   * Full data: ', binascii.hexlify(msg_data))
         # No handling for this type of message
         else:
-            print(' - Unknown message')
-            print('   * After decoding : ', binascii.hexlify(data))
-            print('   * MsgType		: ', binascii.hexlify(data[:2]))
-            print('   * MsgLength	: ', binascii.hexlify(data[2:4]))
-            print('   * RSSI		: ', binascii.hexlify(data[4:5]))
-            print('   * ChkSum		: ', binascii.hexlify(data[5:6]))
-            print('   * Data		: ', binascii.hexlify(data[6:]))
+            print(' - RESPONSE : Unknown Message')
+            print('   * After decoding  : ', binascii.hexlify(data))
+            print('   * MsgType         : ', msg_type)
+            print('   * MsgLength       : ', binascii.hexlify(data[2:4]))
+            print('   * RSSI            : ', binascii.hexlify(data[4:5]))
+            print('   * ChkSum          : ', binascii.hexlify(data[5:6]))
+            print('   * Data            : ', binascii.hexlify(msg_data))
 
     def interpret_attribute(self, msg_data):
         device_addr = binascii.hexlify(msg_data[:2])
@@ -231,8 +240,9 @@ class ZiGate():
         attribute_data = binascii.hexlify(msg_data[11:11 + attribute_size])
         attribute_id = binascii.hexlify(msg_data[5:7])
         cluster_id = binascii.hexlify(msg_data[3:5])
-        print('  - This is Attribute Report')
-        self.set_device_property(device_addr, (cluster_id,attribute_id), attribute_data) # register technical value
+        self.set_device_property(device_addr, (cluster_id,attribute_id), attribute_data) # register tech value
+        self.set_device_property(device_addr, 'Last seen', strftime('%Y-%m-%d %H:%M:%S'))
+
         # Which attribute
         if cluster_id == b'0000':
             if attribute_id == b'0005':
@@ -297,7 +307,10 @@ class ZiGate():
         for addr in self.devices.keys():
             print('- addr : ', addr)
             for k,v in self.devices[addr].items():
-                print('    * ', k, ' : ', v) 
+                if type(k) is tuple:
+                    print('    * ', k, ' : ', v,' (',CLUSTERS[k[0]],')')
+                else:
+                    print('    * ', k, ' : ', v) 
         print('-- DEVICE REPORT - END -------------------')
 
 if __name__ == "__main__":
