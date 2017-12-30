@@ -164,7 +164,7 @@ class ZiGate():
         if binascii.hexlify(data[:2]) == b'004d':
             device_addr = binascii.hexlify(msg_data[:2])
             self.set_device_property(device_addr, 'MAC', binascii.hexlify(msg_data[2:10]))
-            print('  - This is Device Announce')
+            print('  - RESPONSE 004d : Device Announce')
             print('    * From address: ', device_addr)
             print('    * MAC address: ', binascii.hexlify(msg_data[2:10]))
             print('    * MAC capability: ', binascii.hexlify(msg_data[10:11]))
@@ -189,7 +189,7 @@ class ZiGate():
             else:
                 status_text = 'Unknown'
             print('  - RESPONSE 8000 : Status')
-            print('    * Sequence: ', status_text)
+            print('    * Status: ', status_text)
             print('    * Sequence: ', binascii.hexlify(data[6:7]))
             print('    * Response to command: ', binascii.hexlify(data[7:9]))
             if binascii.hexlify(data[9:]) != b'00':
@@ -207,7 +207,8 @@ class ZiGate():
             print('   * Installer version : ', binascii.hexlify(data[8:10]))
         # Endpoint list
         elif msg_type == b'8045':
-            pass
+            print(' - RESPONSE 8045 : Active Endpoint')
+            print('   * Sequence : ', binascii.hexlify(data[6:8]))
         # Currently only support Xiaomi sensors. Other brands might calc things differently
         elif msg_type == b'8102':
             sequence = binascii.hexlify(data[5:6])
@@ -236,10 +237,10 @@ class ZiGate():
 
     def interpret_attribute(self, msg_data):
         device_addr = binascii.hexlify(msg_data[:2])
+        cluster_id = binascii.hexlify(msg_data[3:5])
+        attribute_id = binascii.hexlify(msg_data[5:7])
         attribute_size = int(binascii.hexlify(msg_data[9:11]), 16)  # Convert attribute size data to int
         attribute_data = binascii.hexlify(msg_data[11:11 + attribute_size])
-        attribute_id = binascii.hexlify(msg_data[5:7])
-        cluster_id = binascii.hexlify(msg_data[3:5])
         self.set_device_property(device_addr, (cluster_id,attribute_id), attribute_data) # register tech value
         self.set_device_property(device_addr, 'Last seen', strftime('%Y-%m-%d %H:%M:%S'))
 
