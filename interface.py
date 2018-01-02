@@ -330,9 +330,10 @@ class ZiGate():
             print('  - Command        : ', msg['command_id'])
             print('  - Status         : ', msg['status'])
 
+        # Read attribute response, Attribute report, Write attribute response 
         # Currently only support Xiaomi sensors. Other brands might calc things differently
-        elif msg_type == b'8102':
-            sequence = hexlify(data[5:6])
+        elif msg_type in (b'8100', b'8102', b'8110'):
+            print('RESPONSE %s : Attribute Report / Response' % msg_type.decode())
             self.interpret_attribute(msg_data)
 
         # Route Discovery Confirmation
@@ -345,7 +346,7 @@ class ZiGate():
         
         # No handling for this type of message
         else:
-            print('RESPONSE : Unknown Message')
+            print('RESPONSE %s : Unknown Message' % msg_type.decode())
             print('  - After decoding  : ', hexlify(data))
             print('  - MsgType         : ', msg_type)
             print('  - MsgLength       : ', hexlify(data[2:4]))
@@ -374,7 +375,6 @@ class ZiGate():
         self.set_device_property(device_addr, (cluster_id,attribute_id), attribute_data) # register tech value
         self.set_device_property(device_addr, 'Last seen', strftime('%Y-%m-%d %H:%M:%S'))
 
-        print('RESPONSE 8102 : Attribute Report')
         if msg['sequence'] == b'00':
             print('  - Sensor type announce (Start after pairing 1)')
         elif msg['sequence'] == b'01':
@@ -396,6 +396,7 @@ class ZiGate():
             elif attribute_id == b'8000':
                 print('  * Multi click')
                 print('  * Pressed: ', int(hexlify(attribute_data), 16), " times")
+        # Movement
         elif cluster_id == b'000c':  # Unknown cluster id
             print('  * Rotation horizontal')
         elif cluster_id == b'0012':  # Unknown cluster id
@@ -407,11 +408,13 @@ class ZiGate():
                     print('  * Rotated: ', int(hexlify(attribute_data), 16), "°")
                 elif attribute_data == b'0103':
                     print('  * Sliding')
+        # Temperature
         elif cluster_id == b'0402':
             temperature = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, 'Temperature', temperature)
             print('  * Measurement: Temperature'),
             print('  * Value: ', temperature, "°C")
+        # Atmospheric Pressure
         elif cluster_id == b'0403':
             print('  * Atmospheric pressure')
             pressure = int(hexlify(attribute_data), 16)
@@ -423,11 +426,13 @@ class ZiGate():
                 print('  * Value: ', pressure/10, "mb")
             elif attribute_id == b'0014':
                 print('  * Value unknown')
+        # Humidity
         elif cluster_id == b'0405':
             humidity = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, 'Humidity', humidity)
             print('  * Measurement: Humidity')
             print('  * Value: ', humidity, "%")
+        # Presence Detection
         elif cluster_id == b'0406':
             print('   * Presence detection')  # Only sent when movement is detected
 
