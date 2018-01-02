@@ -224,7 +224,7 @@ class ZiGate():
             struct = OrderedDict([('short_addr', 16), ('mac_addr', 64), ('mac_capability', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
 
-            self.set_device_property(device_addr, 'MAC', msg['short_addr'])
+            self.set_device_property(msg['short_addr'], 'MAC', msg['mac_addr'])
             print('RESPONSE 004d : Device Announce')
             print('  * From address   : ', msg['short_addr'])
             print('  * MAC address    : ', msg['mac_addr'])
@@ -315,6 +315,20 @@ class ZiGate():
             print('  - EndPoint count : ', msg['enpoint_count'])
             for i,endpoint in enumerate(msg['endpoint_list']):
                 print('    * EndPoint %s : %s' % (i, endpoint))
+
+        # Default Response
+        elif msg_type == b'8101':
+            struct = OrderedDict([('sequence', 8), ('endpoint', 8), ('cluster', 16), ('command_id', 8),
+                                  ('status', 8)
+                                  ])
+            msg = self.decode_struct(struct, msg_data)
+
+            print('RESPONSE 8101 : Default Response')
+            print('  - Sequence       : ', msg['sequence'])
+            print('  - EndPoint       : ', msg['endpoint'])
+            print('  - Cluster id     :  %s (%s)' % (msg['cluster'], CLUSTERS.get(msg['cluster'], 'unknown')))
+            print('  - Command        : ', msg['command_id'])
+            print('  - Status         : ', msg['status'])
 
         # Currently only support Xiaomi sensors. Other brands might calc things differently
         elif msg_type == b'8102':
