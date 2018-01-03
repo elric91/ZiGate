@@ -1,6 +1,4 @@
 #! /usr/bin/python3
-import serial
-import threading
 from binascii import (hexlify, unhexlify)
 from time import (sleep, strftime)
 from collections import OrderedDict
@@ -43,9 +41,7 @@ LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'I
 class ZiGate():
 
     def __init__(self, device="/dev/ttyUSB0"):
-        self.conn = serial.Serial(device, 115200, timeout=0)
-        self.buffer = b''
-        self.thread = threading.Thread(target=self.read_data).start()
+        self._buffer = b''
         self.devices = {}
 
     @staticmethod
@@ -106,22 +102,22 @@ class ZiGate():
             self.devices[addr] = {}
         self.devices[addr][property_id] = property_data
 
-    def read_data(self):
+    # Must be called from a thread loop or asyncio event loop
+    def read_data(self, data):
         """Read ZiGate output and split messages"""
-        while True:
-            bytesavailable = self.conn.inWaiting()
-            if bytesavailable > 0:
-                self.buffer += self.conn.read(bytesavailable)
-                endpos = self.buffer.find(b'\x03')
-                if endpos != -1:
-                    startpos = self.buffer.find(b'\x01')
-                    data_to_decode = self.zigate_decode(self.buffer[startpos + 1:endpos]) # stripping starting 0x01 & ending 0x03
-                    self.interpret_data(data_to_decode) 
-                    print('  # encoded : ', hexlify(self.buffer[startpos:endpos + 1]))
-                    print('  # decoded : 01', ' '.join([format(x, '02x') for x in data_to_decode]).upper(),'03')
-                    print('  (@timestamp : ', strftime("%H:%M:%S"), ')')
-                    self.buffer = self.buffer[endpos + 1:]
+        self._buffer += data
+        endpos = self._buffer.find(b'\x03')
+        while endpos != -1:
+            startpos = self._buffer.find(b'\x01')
+            data_to_decode = self.zigate_decode(self._buffer[startpos + 1:endpos]) # stripping starting 0x01 & ending 0x03
+            self.interpret_data(data_to_decode) 
+            print('  # encoded : ', hexlify(self._buffer[startpos:endpos + 1]))
+            print('  # decoded : 01', ' '.join([format(x, '02x') for x in data_to_decode]).upper(),'03')
+            print('  (@timestamp : ', strftime("%H:%M:%S"), ')')
+            self._buffer = self._buffer[endpos + 1:]
+            endpos = self._buffer.find(b'\x03')
 
+    # Calls "transport_write" which must be defined in a serial connection or pyserial_asyncio transport
     def send_data(self, cmd, data=""):
         """send data through ZiGate"""
         byte_cmd = bytes.fromhex(cmd)
@@ -153,7 +149,13 @@ class ZiGate():
         print('  # encoded  : ', hexlify(encoded_output))
         print('(timestamp : ', strftime("%H:%M:%S"), ')')
         print('--------------------------------------')
-        self.conn.write(encoded_output)
+
+        self.send_to_transport(encoded_output)
+
+    # Must be defined in the transport
+    @staticmethod
+    def send_to_transport(data):
+        pass
 
     @staticmethod
     def decode_struct(struct, msg):
@@ -233,23 +235,10 @@ class ZiGate():
         elif msg_type == b'8000':
             struct = OrderedDict([('status', 'int'), ('sequence', 8), ('packet_type', 16), ('info', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
-
-            if msg['status'] == 0:
-                status_text = 'Success'
-            elif msg['status'] == 1:
-                status_text = 'Invalid parameters'
-            elif msg['status'] == 2:
-                status_text = 'Unhandled command'
-            elif msg['status'] == 3:
-                status_text = 'Command failed'
-            elif msg['status'] == 4:
-                status_text = 'Busy'
-            elif msg['status'] == 5:
-                status_text = 'Stack already started'
-            elif msg['status'] >= 128:
-                status_text = 'Failed with event code: %i' % msg['status']
-            else:
-                status_text = 'Unknown'
+            
+            status_codes = {1:'Success', 2:'Invalid parameters', 3:'Unhandled command', 4:'Command failed',
+                            5:'Busy', 6:'Stack already started'}
+            status_text = status_codes.get(msg['status'], 'Failed with event code: %i' % msg['status'])
 
             print('RESPONSE 8000 : Status')
             print('  * Status              : ', status_text)
@@ -531,5 +520,30 @@ class ZiGate():
                     print('    * ', k, ' : ', v) 
         print('-- DEVICE REPORT - END -------------------')
 
+# Functions when used with serial & threads
+class Threaded_connection(object):
+
+    def __init__(self, device):
+        import serial
+        import threading
+
+        self.device = device
+        self.cnx = serial.Serial("/dev/ttyUSB1", 115200, timeout=0)
+        self.thread = threading.Thread(target=self.read).start()
+        device.send_to_transport = self.send
+
+    def read(self):
+        while True:
+            bytesavailable = self.cnx.inWaiting()
+            if bytesavailable > 0:
+                self.device.read_data(self.cnx.read(bytesavailable))
+
+    def send(self, data):
+        self.conn.write(data)
+     
+
+
 if __name__ == "__main__":
+
     zigate = ZiGate()
+    connection = Threaded_connection(zigate)
