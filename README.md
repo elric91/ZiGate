@@ -9,7 +9,7 @@ How to use :
 from interface import *
 z = ZiGate()
 conn = Threaded_connection(z)
-z.send_data('0049', 'FFFCFE0210')
+z.send_data('0049', 'FFFCFE00')
 ```
 - (last line ask for join request)
 - put device in join mode (i.e. long press on button)
@@ -23,7 +23,7 @@ z.list.devices()
 ```
 In [5]: zigate.send_data('0049', 'FFFCFE00')
 --------------------------------------
-REQUEST      :  0049   FFFCFE0210
+REQUEST      :  0049   FFFCFE00
   - standard :  01 00 49 00 05 A3 FF FC FE 02 10 03
   - encoded  :  b'0102104902100215a3fffcfe02121003'
 (timestamp :  14:52:18 )
