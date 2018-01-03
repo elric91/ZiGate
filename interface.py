@@ -40,7 +40,7 @@ LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'I
 
 class ZiGate():
 
-    def __init__(self, device="/dev/ttyUSB0"):
+    def __init__(self):
         self._buffer = b''
         self.devices = {}
 
@@ -152,7 +152,7 @@ class ZiGate():
 
         self.send_to_transport(encoded_output)
 
-    # Must be defined in the transport
+    # Must be defined and assigned in the transport object
     @staticmethod
     def send_to_transport(data):
         pass
@@ -236,8 +236,8 @@ class ZiGate():
             struct = OrderedDict([('status', 'int'), ('sequence', 8), ('packet_type', 16), ('info', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
             
-            status_codes = {1:'Success', 2:'Invalid parameters', 3:'Unhandled command', 4:'Command failed',
-                            5:'Busy', 6:'Stack already started'}
+            status_codes = {0:'Success', 1:'Invalid parameters', 2:'Unhandled command', 3:'Command failed',
+                            4:'Busy', 5:'Stack already started'}
             status_text = status_codes.get(msg['status'], 'Failed with event code: %i' % msg['status'])
 
             print('RESPONSE 8000 : Status')
