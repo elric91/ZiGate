@@ -338,7 +338,7 @@ class ZiGate():
             for i, cluster_id in enumerate(msg['in_cluster_list']):
                 print('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
             print('  - OUT cluster count  : ', msg['out_cluster_count'])
-            for i, cluster_id in enumerate(msg['in_cluster_list']):
+            for i, cluster_id in enumerate(msg['out_cluster_list']):
                 print('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
 
         # Power Descriptor
