@@ -523,12 +523,12 @@ class ZiGate():
 # Functions when used with serial & threads
 class Threaded_connection(object):
 
-    def __init__(self, device):
+    def __init__(self, device, port='/dev/ttyUSB0'):
         import serial
         import threading
 
         self.device = device
-        self.cnx = serial.Serial("/dev/ttyUSB1", 115200, timeout=0)
+        self.cnx = serial.Serial(port, 115200, timeout=0)
         self.thread = threading.Thread(target=self.read).start()
         device.send_to_transport = self.send
 
@@ -539,7 +539,7 @@ class Threaded_connection(object):
                 self.device.read_data(self.cnx.read(bytesavailable))
 
     def send(self, data):
-        self.conn.write(data)
+        self.cnx.write(data)
      
 
 
