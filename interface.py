@@ -76,7 +76,7 @@ class ZiGate():
         for x in data:
             if bytes([x]) == b'\x02':
                 encoded = True
-            elif encoded == True:
+            elif encoded is True:
                 encoded = False
                 decoded_data += bxor_join(bytes([x]), b'\x10')
             else:
@@ -108,9 +108,9 @@ class ZiGate():
 
     def read_data(self):
         """Read ZiGate output and split messages"""
-        while (True):
+        while True:
             bytesavailable = self.conn.inWaiting()
-            if (bytesavailable > 0):
+            if bytesavailable > 0:
                 self.buffer += self.conn.read(bytesavailable)
                 endpos = self.buffer.find(b'\x03')
                 if endpos != -1:
@@ -211,7 +211,6 @@ class ZiGate():
         
         return output
 
-
     def interpret_data(self, data):
         """Interpret responses attributes"""
         msg_data = data[5:]
@@ -276,6 +275,58 @@ class ZiGate():
             print('RESPONSE : Version List')
             print('  - Major version : ', msg['major'])
             print('  - Installer version : ', msg['installer'])
+
+        # Node Descriptor
+        elif msg_type == b'8042':
+            struct = OrderedDict([('sequence', 8), ('status', 8), ('addr', 16), ('manufacturer_code', 16),
+                                  ('max_rx', 16), ('max_tx', 16), ('server_mask', 16), ('descriptor_capability', 8),
+                                  ('mac_flags', 8), ('max_buffer_size', 16), ('bit_field', 16),
+                                  ])
+            msg = self.decode_struct(struct, msg_data)
+
+            server_mask_binary = format(int(msg['server_mask'], 16), '016b')
+            descriptor_capability_binary = format(int(msg['descriptor_capability'], 16), '08b')
+            mac_flags_binary = format(int(msg['mac_flags'], 16), '08b')
+            bit_field_binary = format(int(msg['bit_field'], 16), '016b')
+
+            server_mask_description = ['Primary trust center', 'Back up trust center', 'Primary binding cache',
+                                       'Backup binding cache', 'Primary discovery cache', 'Backup discovery cache',
+                                       'Network manager']  # Length 16, 7-15 Reserved
+            descriptor_capability_description = ['Extended Active endpoint list',
+                                                 'Extended simple descriptor list']  # Length 8, 2-7 Reserved
+            mac_capability_description = ['Alternate PAN Coordinator', 'Device Type', 'Power source',
+                                          'Receiver On when Idle', 'Reserved', 'Reserved', 'Security capability',
+                                          'Allocate Address']  # Length 8
+            bit_field_description = ['Logical type: Coordinator', 'Logical type: Router', 'Logical type: End Device',
+                                     'Complex descriptor available', 'User descriptor available', 'Reserved',
+                                     'Reserved', 'Reserved',
+                                     'APS Flag', 'APS Flag', 'APS Flag', 'Frequency band', 'Frequency band',
+                                     'Frequency band', 'Frequency band', 'Frequency band']  # Length 16
+
+            print('RESPONSE 8042 : Node Descriptor')
+            print('  - Sequence          : ', msg['sequence'])
+            print('  - Status            : ', msg['status'])
+            print('  - From address      : ', msg['addr'])
+            print('  - Manufacturer code : ', msg['manufacturer_code'])
+            print('  - Max Rx size       : ', msg['max_rx'])
+            print('  - Max Tx size       : ', msg['max_tx'])
+            print('  - Server mask       : ', msg['server_mask'])
+            print('    - Binary          : ', server_mask_binary)
+            for i, description in enumerate(server_mask_description, 1):
+                print('    - %s : %s' % (description, 'Yes' if server_mask_binary[-i] == '1' else 'No'))
+            print('  - Descriptor        : ', msg['descriptor_capability'])
+            print('    - Binary          : ', descriptor_capability_binary)
+            for i, description in enumerate(descriptor_capability_description, 1):
+                print('    - %s : %s' % (description, 'Yes' if descriptor_capability_binary[-i] == '1' else 'No'))
+            print('  - Mac flags         : ', msg['mac_flags'])
+            print('    - Binary          : ', mac_flags_binary)
+            for i, description in enumerate(mac_capability_description, 1):
+                print('    - %s : %s' % (description, 'Yes' if mac_flags_binary[-i] == '1' else 'No'))
+            print('  - Max buffer size   : ', msg['max_buffer_size'])
+            print('  - Bit field         : ', msg['bit_field'])
+            print('    - Binary          : ', bit_field_binary)
+            for i, description in enumerate(bit_field_description, 1):
+                print('    - %s : %s' % (description, 'Yes' if bit_field_binary[-i] == '1' else 'No'))
         
         # Cluster List
         elif msg_type == b'8043':
@@ -296,10 +347,35 @@ class ZiGate():
             print('  - Device ID         : ', msg['device_id'])
             print('  - IN cluster count  : ', msg['in_cluster_count'])
             for i, cluster_id in enumerate(msg['in_cluster_list']):
-                print('    - Cluster %s : %s (%s)' %(i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+                print('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
             print('  - OUT cluster count  : ', msg['out_cluster_count'])
             for i, cluster_id in enumerate(msg['in_cluster_list']):
-                print('    - Cluster %s : %s (%s)' %(i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+                print('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+
+        # Power Descriptor
+        elif msg_type == b'8044':
+            struct = OrderedDict([('sequence', 8), ('status', 8), ('bit_field', 16), ])
+            msg = self.decode_struct(struct, msg_data)
+
+            bit_field_binary = format(int(msg['bit_field'], 16), '016b')
+
+            power_mode_description = {'0000': 'Receiver on when idle', '0001': 'Receiver switched on periodically',
+                                      '0010': 'Receiver switched on when stimulated,'}  # Others Reserved
+            power_sources = ['Permanent mains supply', 'Rechargeable battery', 'Disposable battery']  # 4th Reserved
+            current_power_level = {'0000': 'Critically low', '0100': 'Approximately 33%', '1000': 'Approximately 66%',
+                                   '1100': 'Approximately 100%'}
+
+            print('RESPONSE 8044 : Power Descriptor')
+            print('  - Sequence          : ', msg['sequence'])
+            print('  - Status            : ', msg['status'])
+            print('  - Bit field         : ', msg['bit_field'])
+            print('    - Binary          : ', bit_field_binary)
+            print('    - Current mode    : ', power_mode_description.get(bit_field_binary[-4:], 'Unknown'))
+            print('    - Sources         : ')
+            for i, description in enumerate(power_sources, 1):
+                print('       - %s : %s %s' % (description, 'Yes' if bit_field_binary[8:12][-i] == '1' else 'No',
+                                               '[CURRENT]' if bit_field_binary[4:8][-i] == '1' else ''))
+            print('    - Level           : ', current_power_level.get(bit_field_binary[:4], 'Unknown'))
 
         # Endpoint List
         elif msg_type == b'8045':
@@ -312,8 +388,8 @@ class ZiGate():
             print('  - Sequence       : ', msg['sequence'])
             print('  - Status         : ', msg['status'])
             print('  - From address   : ', msg['addr'])
-            print('  - EndPoint count : ', msg['enpoint_count'])
-            for i,endpoint in enumerate(msg['endpoint_list']):
+            print('  - EndPoint count : ', msg['endpoint_count'])
+            for i, endpoint in enumerate(msg['endpoint_list']):
                 print('    * EndPoint %s : %s' % (i, endpoint))
 
         # Default Response
@@ -372,7 +448,7 @@ class ZiGate():
         attribute_id = msg['attribute_id']
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
-        self.set_device_property(device_addr, (cluster_id,attribute_id), attribute_data) # register tech value
+        self.set_device_property(device_addr, (cluster_id, attribute_id), attribute_data)  # register tech value
         self.set_device_property(device_addr, 'Last seen', strftime('%Y-%m-%d %H:%M:%S'))
 
         if msg['sequence'] == b'00':
@@ -395,7 +471,7 @@ class ZiGate():
                     print('  * Open/Release button')
             elif attribute_id == b'8000':
                 print('  * Multi click')
-                print('  * Pressed: ', int(hexlify(attribute_data), 16), " times")
+                print('  * Pressed: ', int(hexlify(attribute_data), 16), ' times')
         # Movement
         elif cluster_id == b'000c':  # Unknown cluster id
             print('  * Rotation horizontal')
@@ -405,7 +481,7 @@ class ZiGate():
                     print('  * Shaking')
                 elif attribute_data == b'0055':
                     print('  * Rotating vertical')
-                    print('  * Rotated: ', int(hexlify(attribute_data), 16), "°")
+                    print('  * Rotated: ', int(hexlify(attribute_data), 16), '°')
                 elif attribute_data == b'0103':
                     print('  * Sliding')
         # Temperature
@@ -413,17 +489,17 @@ class ZiGate():
             temperature = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, 'Temperature', temperature)
             print('  * Measurement: Temperature'),
-            print('  * Value: ', temperature, "°C")
+            print('  * Value: ', temperature, '°C')
         # Atmospheric Pressure
         elif cluster_id == b'0403':
             print('  * Atmospheric pressure')
             pressure = int(hexlify(attribute_data), 16)
             if attribute_id == b'0000':
                 self.set_device_property(device_addr, 'Pressure', pressure)
-                print('  * Value: ', pressure, "mb")
+                print('  * Value: ', pressure, 'mb')
             elif attribute_id == b'0010':
                 self.set_device_property(device_addr, 'Pressure - detailed', pressure/10)
-                print('  * Value: ', pressure/10, "mb")
+                print('  * Value: ', pressure/10, 'mb')
             elif attribute_id == b'0014':
                 print('  * Value unknown')
         # Humidity
@@ -431,7 +507,7 @@ class ZiGate():
             humidity = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, 'Humidity', humidity)
             print('  * Measurement: Humidity')
-            print('  * Value: ', humidity, "%")
+            print('  * Value: ', humidity, '%')
         # Presence Detection
         elif cluster_id == b'0406':
             print('   * Presence detection')  # Only sent when movement is detected
