@@ -236,8 +236,8 @@ class ZiGate():
             struct = OrderedDict([('status', 'int'), ('sequence', 8), ('packet_type', 16), ('info', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
             
-            status_codes = {0:'Success', 1:'Invalid parameters', 2:'Unhandled command', 3:'Command failed',
-                            4:'Busy', 5:'Stack already started'}
+            status_codes = {0: 'Success', 1: 'Invalid parameters', 2: 'Unhandled command', 3: 'Command failed',
+                            4: 'Busy', 5: 'Stack already started'}
             status_text = status_codes.get(msg['status'], 'Failed with event code: %i' % msg['status'])
 
             print('RESPONSE 8000 : Status')
@@ -381,6 +381,15 @@ class ZiGate():
             for i, endpoint in enumerate(msg['endpoint_list']):
                 print('    * EndPoint %s : %s' % (i, endpoint))
 
+        # Leave indication
+        elif msg_type == b'8048':
+            struct = OrderedDict([('extended_addr', 64), ('rejoin_status', 8), ])
+            msg = self.decode_struct(struct, msg_data)
+
+            print('RESPONSE 8048 : Leave indication')
+            print('  - From address   : ', msg['extended_addr'])
+            print('  - Rejoin status  : ', msg['rejoin_status'])
+
         # Default Response
         elif msg_type == b'8101':
             struct = OrderedDict([('sequence', 8), ('endpoint', 8), ('cluster', 16), ('command_id', 8),
@@ -401,6 +410,38 @@ class ZiGate():
             print('RESPONSE %s : Attribute Report / Response' % msg_type.decode())
             self.interpret_attribute(msg_data)
 
+        # Zone status change
+        elif msg_type == b'8401':
+            struct = OrderedDict([('sequence', 8), ('endpoint', 8), ('cluster', 16), ('src_address_mode', 8),
+                                  ('src_address', 16), ('zone_status', 16), ('extended_status', 16), ('zone_id', 8),
+                                  ('delay_count', 'count'), ('delay_list', 16),
+                                  ])
+            msg = self.decode_struct(struct, msg_data)
+
+            zone_status_binary = format(int(msg['zone_status'], 16), '016b')
+
+            # Length 16, 10-15 Reserved
+            zone_status_descriptions = ('Alarm 1', 'Alarm 2', 'Tampered', 'Battery', 'Supervision reports',
+                                        'Report when normal', 'Trouble', 'AC (Mains)', 'Test Mode', 'Battery defective')
+            zone_status_values = (('Closed/Not alarmed', 'Opened/Alarmed'), ('Closed/Not alarmed', 'Opened/Alarmed'),
+                                  ('No', 'Yes'), ('OK', 'Low'), ('No', 'Yes'), ('No', 'Yes'), ('No', 'Yes'),
+                                  ('Ok', 'Failure'), ('No', 'Yes'), ('No', 'Yes'),)
+
+            print('RESPONSE 8401 : Zone status change notification')
+            print('  - Sequence       : ', msg['sequence'])
+            print('  - EndPoint       : ', msg['endpoint'])
+            print('  - Cluster id     :  %s (%s)' % (msg['cluster'], CLUSTERS.get(msg['cluster'], 'unknown')))
+            print('  - Src addr mode  : ', msg['src_address_mode'])
+            print('  - Src address    : ', msg['src_address'])
+            print('  - Zone status    : ', msg['zone_status'])
+            print('    - Binary       : ', zone_status_binary)
+            for i, description in enumerate(zone_status_descriptions, 1):
+                print('    - %s : %s' % (description, zone_status_values[i-1][int(zone_status_binary[-i])]))
+            print('  - Zone id        : ', msg['zone_id'])
+            print('  - Delay count    : ', msg['delay_count'])
+            for i, value in enumerate(msg['delay_list']):
+                print('    - %s : %s' % (i, value))
+
         # Route Discovery Confirmation
         elif msg_type == b'8701':
             print('RESPONSE 8701: Route Discovery Confirmation')
@@ -408,6 +449,21 @@ class ZiGate():
             print('  - Status         : ', hexlify(msg_data[1:2]))
             print('  - Network status : ', hexlify(msg_data[2:3]))
             print('  - Message data   : ', hexlify(msg_data))
+
+        # APS Data Confirm Fail
+        elif msg_type == b'8702':
+            struct = OrderedDict([('status', 8), ('src_endpoint', 8), ('dst_endpoint', 8), ('dst_address_mode', 8),
+                                  ('dst_address', 64), ('sequence', 8),
+                                  ])
+            msg = self.decode_struct(struct, msg_data)
+
+            print('RESPONSE 8702 : APS Data Confirm Fail')
+            print('  - Status         : ', msg['status'])
+            print('  - Src endpoint   : ', msg['src_endpoint'])
+            print('  - Dst endpoint   : ', msg['dst_endpoint'])
+            print('  - Dst mode       : ', msg['dst_address_mode'])
+            print('  - Dst address    : ', msg['dst_address'])
+            print('  - Sequence       : ', msg['sequence'])
         
         # No handling for this type of message
         else:
@@ -515,10 +571,11 @@ class ZiGate():
             print('- addr : ', addr)
             for k,v in self.devices[addr].items():
                 if type(k) is tuple:
-                    print('    * ', k, ' : ', v,' (',CLUSTERS[k[0]],')')
+                    print('    * ', k, ' : ', v, ' (',CLUSTERS[k[0]],')')
                 else:
                     print('    * ', k, ' : ', v) 
         print('-- DEVICE REPORT - END -------------------')
+
 
 # Functions when used with serial & threads
 class Threaded_connection(object):
