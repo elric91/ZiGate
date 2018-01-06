@@ -2,6 +2,7 @@
 from binascii import (hexlify, unhexlify)
 from time import (sleep, strftime)
 from collections import OrderedDict
+import logging
 
 
 CLUSTERS = {b'0000':'General: Basic',
@@ -35,7 +36,8 @@ CLUSTERS = {b'0000':'General: Basic',
             b'FF02':'Xiaomi private'
           }
 
-LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Information', 'Debug']
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.DEBUG)
 
 # properties
 ZIGATE_TEMPERATURE = 'temperature'
@@ -43,6 +45,7 @@ ZIGATE_PRESSURE = 'pressure'
 ZIGATE_DETAILED_PRESSURE = 'detailed pressure'
 ZIGATE_HUMIDITY = 'humidity'
 ZIGATE_LAST_SEEN = 'last seen'
+
 
 class ZiGate():
 
@@ -120,9 +123,9 @@ class ZiGate():
             startpos = self._buffer.find(b'\x01')
             data_to_decode = self.zigate_decode(self._buffer[startpos + 1:endpos]) # stripping starting 0x01 & ending 0x03
             self.interpret_data(data_to_decode) 
-            print('  # encoded : ', hexlify(self._buffer[startpos:endpos + 1]))
-            print('  # decoded : 01', ' '.join([format(x, '02x') for x in data_to_decode]).upper(),'03')
-            print('  (@timestamp : ', strftime("%H:%M:%S"), ')')
+            _LOGGER.debug('  # encoded : {}'.format(hexlify(self._buffer[startpos:endpos + 1])))
+            _LOGGER.debug('  # decoded : 01{}03'.format(' '.join([format(x, '02x') for x in data_to_decode]).upper()))
+            _LOGGER.debug('  (@timestamp : {}'.format(strftime("%H:%M:%S")))
             self._buffer = self._buffer[endpos + 1:]
             endpos = self._buffer.find(b'\x03')
 
@@ -152,12 +155,12 @@ class ZiGate():
 
         std_output = b''.join([bytes([x]) for x in std_msg])
         encoded_output = b''.join([bytes([x]) for x in enc_msg])
-        print('--------------------------------------')
-        print('REQUEST      : ', cmd, " ", data)
-        print('  # standard : ', ' '.join([format(x, '02x') for x in std_output]).upper())
-        print('  # encoded  : ', hexlify(encoded_output))
-        print('(timestamp : ', strftime("%H:%M:%S"), ')')
-        print('--------------------------------------')
+        _LOGGER.debug('--------------------------------------')
+        _LOGGER.debug('REQUEST      : {} {}'.format(cmd, data))
+        _LOGGER.debug('  # standard : {}'.format(' '.join([format(x, '02x') for x in std_output]).upper()))
+        _LOGGER.debug('  # encoded  : {}'.format(hexlify(encoded_output)))
+        _LOGGER.debug('(timestamp : {})'.format(strftime("%H:%M:%S")))
+        _LOGGER.debug('--------------------------------------')
 
         self.send_to_transport(encoded_output)
 
@@ -228,17 +231,17 @@ class ZiGate():
         msg_type = hexlify(data[0:2])
 
         # Do different things based on MsgType
-        print('--------------------------------------')
+        _LOGGER.debug('--------------------------------------')
         # Device Announce
         if msg_type == b'004d':
             struct = OrderedDict([('short_addr', 16), ('mac_addr', 64), ('mac_capability', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
 
             self.set_device_property(msg['short_addr'], 'MAC', msg['mac_addr'])
-            print('RESPONSE 004d : Device Announce')
-            print('  * From address   : ', msg['short_addr'])
-            print('  * MAC address    : ', msg['mac_addr'])
-            print('  * MAC capability : ', msg['mac_capability'])
+            _LOGGER.debug('RESPONSE 004d : Device Announce')
+            _LOGGER.debug('  * From address   : {}'.format(msg['short_addr']))
+            _LOGGER.debug('  * MAC address    : {}'.format(msg['mac_addr']))
+            _LOGGER.debug('  * MAC capability : {}'.format(msg['mac_capability']))
         
         # Status
         elif msg_type == b'8000':
@@ -249,30 +252,31 @@ class ZiGate():
                             4: 'Busy', 5: 'Stack already started'}
             status_text = status_codes.get(msg['status'], 'Failed with event code: %i' % msg['status'])
 
-            print('RESPONSE 8000 : Status')
-            print('  * Status              : ', status_text)
-            print('  - Sequence            : ', msg['sequence'])
-            print('  - Response to command : ', msg['packet_type'])
+            _LOGGER.debug('RESPONSE 8000 : Status')
+            _LOGGER.debug('  * Status              : {}'.format(status_text))
+            _LOGGER.debug('  - Sequence            : {}'.format(msg['sequence']))
+            _LOGGER.debug('  - Response to command : {}'.format(msg['packet_type']))
             if hexlify(msg['info']) != b'00':
-                print('  - Additional msg: ', msg['info']) 
+                _LOGGER.debug('  - Additional msg: ', msg['info']) 
         
         # Default Response
         elif msg_type == b'8001':
+            ZIGATE_LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Information', 'Debug']
             struct = OrderedDict([('level', 'int'), ('info', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
 
-            print('RESPONSE 8001 : Log Message')
-            print('  - Log Level : Log level ', LOG_LEVELS[msg['level']])
-            print('  - Log Info  : ', msg['info'])
+            _LOGGER.debug('RESPONSE 8001 : Log Message')
+            _LOGGER.debug('  - Log Level : {}'.format(ZIGATE_LOG_LEVELS[msg['level']]))
+            _LOGGER.debug('  - Log Info  : {}'.format(msg['info']))
         
         # Version List
         elif msg_type == b'8010':
             struct = OrderedDict([('major', 'int16'), ('installer', 'int16')])
             msg = self.decode_struct(struct, msg_data)
 
-            print('RESPONSE : Version List')
-            print('  - Major version : ', msg['major'])
-            print('  - Installer version : ', msg['installer'])
+            _LOGGER.debug('RESPONSE : Version List')
+            _LOGGER.debug('  - Major version     : {}'.format(msg['major']))
+            _LOGGER.debug('  - Installer version : {}'.format(msg['installer']))
 
         # Node Descriptor
         elif msg_type == b'8042':
@@ -301,30 +305,30 @@ class ZiGate():
                                      'APS Flag', 'APS Flag', 'APS Flag', 'Frequency band', 'Frequency band',
                                      'Frequency band', 'Frequency band', 'Frequency band']  # Length 16
 
-            print('RESPONSE 8042 : Node Descriptor')
-            print('  - Sequence          : ', msg['sequence'])
-            print('  - Status            : ', msg['status'])
-            print('  - From address      : ', msg['addr'])
-            print('  - Manufacturer code : ', msg['manufacturer_code'])
-            print('  - Max Rx size       : ', msg['max_rx'])
-            print('  - Max Tx size       : ', msg['max_tx'])
-            print('  - Server mask       : ', msg['server_mask'])
-            print('    - Binary          : ', server_mask_binary)
+            _LOGGER.debug('RESPONSE 8042 : Node Descriptor')
+            _LOGGER.debug('  - Sequence          : {}'.format(msg['sequence']))
+            _LOGGER.debug('  - Status            : {}'.format(msg['status']))
+            _LOGGER.debug('  - From address      : {}'.format(msg['addr']))
+            _LOGGER.debug('  - Manufacturer code : {}'.format(msg['manufacturer_code']))
+            _LOGGER.debug('  - Max Rx size       : {}'.format(msg['max_rx']))
+            _LOGGER.debug('  - Max Tx size       : {}'.format(msg['max_tx']))
+            _LOGGER.debug('  - Server mask       : {}'.format(msg['server_mask']))
+            _LOGGER.debug('    - Binary          : {}'.format(server_mask_binary))
             for i, description in enumerate(server_mask_description, 1):
-                print('    - %s : %s' % (description, 'Yes' if server_mask_binary[-i] == '1' else 'No'))
-            print('  - Descriptor        : ', msg['descriptor_capability'])
-            print('    - Binary          : ', descriptor_capability_binary)
+                _LOGGER.debug('    - %s : %s' % (description, 'Yes' if server_mask_binary[-i] == '1' else 'No'))
+            _LOGGER.debug('  - Descriptor        : {}'.format(msg['descriptor_capability']))
+            _LOGGER.debug('    - Binary          : {}'.format(descriptor_capability_binary))
             for i, description in enumerate(descriptor_capability_description, 1):
-                print('    - %s : %s' % (description, 'Yes' if descriptor_capability_binary[-i] == '1' else 'No'))
-            print('  - Mac flags         : ', msg['mac_flags'])
-            print('    - Binary          : ', mac_flags_binary)
+                _LOGGER.debug('    - %s : %s' % (description, 'Yes' if descriptor_capability_binary[-i] == '1' else 'No'))
+            _LOGGER.debug('  - Mac flags         : {}'.format(msg['mac_flags']))
+            _LOGGER.debug('    - Binary          : {}'.format(mmac_flags_binary))
             for i, description in enumerate(mac_capability_description, 1):
-                print('    - %s : %s' % (description, 'Yes' if mac_flags_binary[-i] == '1' else 'No'))
-            print('  - Max buffer size   : ', msg['max_buffer_size'])
-            print('  - Bit field         : ', msg['bit_field'])
-            print('    - Binary          : ', bit_field_binary)
+                _LOGGER.debug('    - %s : %s' % (description, 'Yes' if mac_flags_binary[-i] == '1' else 'No'))
+            _LOGGER.debug('  - Max buffer size   : {}'.format(msg['max_buffer_size']))
+            _LOGGER.debug('  - Bit field         : {}'.format(msg['bit_field']))
+            _LOGGER.debug('    - Binary          : {}'.format(bit_field_binary))
             for i, description in enumerate(bit_field_description, 1):
-                print('    - %s : %s' % (description, 'Yes' if bit_field_binary[-i] == '1' else 'No'))
+                _LOGGER.debug('    - %s : %s' % (description, 'Yes' if bit_field_binary[-i] == '1' else 'No'))
         
         # Cluster List
         elif msg_type == b'8043':
@@ -335,20 +339,20 @@ class ZiGate():
                                   ])
             msg = self.decode_struct(struct, msg_data)
 
-            print('RESPONSE 8043 : Cluster List')
-            print('  - Sequence          : ', msg['sequence'])
-            print('  - Status            : ', msg['status'])
-            print('  - From address      : ', msg['addr'])
-            print('  - Length            : ', msg['length'])
-            print('  - EndPoint          : ', msg['endpoint'])
-            print('  - Profile ID        : ', msg['profile'])
-            print('  - Device ID         : ', msg['device_id'])
-            print('  - IN cluster count  : ', msg['in_cluster_count'])
+            _LOGGER.debug('RESPONSE 8043 : Cluster List')
+            _LOGGER.debug('  - Sequence          : {}'.format(msg['sequence']))
+            _LOGGER.debug('  - Status            : {}'.format(msg['status']))
+            _LOGGER.debug('  - From address      : {}'.format(msg['addr']))
+            _LOGGER.debug('  - Length            : {}'.format(msg['length']))
+            _LOGGER.debug('  - EndPoint          : {}'.format(msg['endpoint']))
+            _LOGGER.debug('  - Profile ID        : {}'.format(msg['profile']))
+            _LOGGER.debug('  - Device ID         : {}'.format(msg['device_id']))
+            _LOGGER.debug('  - IN cluster count  : {}'.format(msg['in_cluster_count']))
             for i, cluster_id in enumerate(msg['in_cluster_list']):
-                print('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
-            print('  - OUT cluster count  : ', msg['out_cluster_count'])
+                _LOGGER.debug('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+            _LOGGER.debug('  - OUT cluster count  : {}'.format(msg['out_cluster_count']))
             for i, cluster_id in enumerate(msg['out_cluster_list']):
-                print('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+                _LOGGER.debug('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
 
         # Power Descriptor
         elif msg_type == b'8044':
@@ -363,17 +367,17 @@ class ZiGate():
             current_power_level = {'0000': 'Critically low', '0100': 'Approximately 33%', '1000': 'Approximately 66%',
                                    '1100': 'Approximately 100%'}
 
-            print('RESPONSE 8044 : Power Descriptor')
-            print('  - Sequence          : ', msg['sequence'])
-            print('  - Status            : ', msg['status'])
-            print('  - Bit field         : ', msg['bit_field'])
-            print('    - Binary          : ', bit_field_binary)
-            print('    - Current mode    : ', power_mode_description.get(bit_field_binary[-4:], 'Unknown'))
-            print('    - Sources         : ')
+            _LOGGER.debug('RESPONSE 8044 : Power Descriptor')
+            _LOGGER.debug('  - Sequence          : {}'.format(msg['sequence']))
+            _LOGGER.debug('  - Status            : {}'.format(msg['status']))
+            _LOGGER.debug('  - Bit field         : {}'.format(msg['bit_field']))
+            _LOGGER.debug('    - Binary          : {}'.format(bit_field_binary))
+            _LOGGER.debug('    - Current mode    : {}'.format(power_mode_description.get(bit_field_binary[-4:], 'Unknown')))
+            _LOGGER.debug('    - Sources         : ')
             for i, description in enumerate(power_sources, 1):
-                print('       - %s : %s %s' % (description, 'Yes' if bit_field_binary[8:12][-i] == '1' else 'No',
+                _LOGGER.debug('       - %s : %s %s' % (description, 'Yes' if bit_field_binary[8:12][-i] == '1' else 'No',
                                                '[CURRENT]' if bit_field_binary[4:8][-i] == '1' else ''))
-            print('    - Level           : ', current_power_level.get(bit_field_binary[:4], 'Unknown'))
+            _LOGGER.debug('    - Level           : {}'.format(current_power_level.get(bit_field_binary[:4], 'Unknown')))
 
         # Endpoint List
         elif msg_type == b'8045':
@@ -382,22 +386,22 @@ class ZiGate():
                                   ])
             msg = self.decode_struct(struct, msg_data)
 
-            print('RESPONSE 8045 : Active Endpoints List')
-            print('  - Sequence       : ', msg['sequence'])
-            print('  - Status         : ', msg['status'])
-            print('  - From address   : ', msg['addr'])
-            print('  - EndPoint count : ', msg['endpoint_count'])
+            _LOGGER.debug('RESPONSE 8045 : Active Endpoints List')
+            _LOGGER.debug('  - Sequence       : {}'.format(msg['sequence']))
+            _LOGGER.debug('  - Status         : {}'.format(msg['status']))
+            _LOGGER.debug('  - From address   : {}'.format(msg['addr']))
+            _LOGGER.debug('  - EndPoint count : {}'.format(msg['endpoint_count']))
             for i, endpoint in enumerate(msg['endpoint_list']):
-                print('    * EndPoint %s : %s' % (i, endpoint))
+                _LOGGER.debug('    * EndPoint %s : %s' % (i, endpoint))
 
         # Leave indication
         elif msg_type == b'8048':
             struct = OrderedDict([('extended_addr', 64), ('rejoin_status', 8), ])
             msg = self.decode_struct(struct, msg_data)
 
-            print('RESPONSE 8048 : Leave indication')
-            print('  - From address   : ', msg['extended_addr'])
-            print('  - Rejoin status  : ', msg['rejoin_status'])
+            _LOGGER.debug('RESPONSE 8048 : Leave indication')
+            _LOGGER.debug('  - From address   : {}'.format(msg['extended_addr']))
+            _LOGGER.debug('  - Rejoin status  : {}'.format(msg['rejoin_status']))
 
         # Default Response
         elif msg_type == b'8101':
@@ -406,17 +410,17 @@ class ZiGate():
                                   ])
             msg = self.decode_struct(struct, msg_data)
 
-            print('RESPONSE 8101 : Default Response')
-            print('  - Sequence       : ', msg['sequence'])
-            print('  - EndPoint       : ', msg['endpoint'])
-            print('  - Cluster id     :  %s (%s)' % (msg['cluster'], CLUSTERS.get(msg['cluster'], 'unknown')))
-            print('  - Command        : ', msg['command_id'])
-            print('  - Status         : ', msg['status'])
+            _LOGGER.debug('RESPONSE 8101 : Default Response')
+            _LOGGER.debug('  - Sequence       : {}'.format(msg['sequence']))
+            _LOGGER.debug('  - EndPoint       : {}'.format(msg['endpoint']))
+            _LOGGER.debug('  - Cluster id     :  %s (%s)' % (msg['cluster'], CLUSTERS.get(msg['cluster'], 'unknown')))
+            _LOGGER.debug('  - Command        : {}'.format(msg['command_id']))
+            _LOGGER.debug('  - Status         : {}'.format(msg['status']))
 
         # Read attribute response, Attribute report, Write attribute response 
         # Currently only support Xiaomi sensors. Other brands might calc things differently
         elif msg_type in (b'8100', b'8102', b'8110'):
-            print('RESPONSE %s : Attribute Report / Response' % msg_type.decode())
+            _LOGGER.debug('RESPONSE %s : Attribute Report / Response' % msg_type.decode())
             self.interpret_attribute(msg_data)
 
         # Zone status change
@@ -436,28 +440,28 @@ class ZiGate():
                                   ('No', 'Yes'), ('OK', 'Low'), ('No', 'Yes'), ('No', 'Yes'), ('No', 'Yes'),
                                   ('Ok', 'Failure'), ('No', 'Yes'), ('No', 'Yes'),)
 
-            print('RESPONSE 8401 : Zone status change notification')
-            print('  - Sequence       : ', msg['sequence'])
-            print('  - EndPoint       : ', msg['endpoint'])
-            print('  - Cluster id     :  %s (%s)' % (msg['cluster'], CLUSTERS.get(msg['cluster'], 'unknown')))
-            print('  - Src addr mode  : ', msg['src_address_mode'])
-            print('  - Src address    : ', msg['src_address'])
-            print('  - Zone status    : ', msg['zone_status'])
-            print('    - Binary       : ', zone_status_binary)
+            _LOGGER.debug('RESPONSE 8401 : Zone status change notification')
+            _LOGGER.debug('  - Sequence       : {}'.format(msg['sequence']))
+            _LOGGER.debug('  - EndPoint       : {}'.format(msg['endpoint']))
+            _LOGGER.debug('  - Cluster id     :  %s (%s)' % (msg['cluster'], CLUSTERS.get(msg['cluster'], 'unknown')))
+            _LOGGER.debug('  - Src addr mode  : {}'.format(msg['src_address_mode']))
+            _LOGGER.debug('  - Src address    : {}'.format(msg['src_address']))
+            _LOGGER.debug('  - Zone status    : {}'.format(msg['zone_status']))
+            _LOGGER.debug('    - Binary       : {}'.format(zone_status_binary))
             for i, description in enumerate(zone_status_descriptions, 1):
-                print('    - %s : %s' % (description, zone_status_values[i-1][int(zone_status_binary[-i])]))
-            print('  - Zone id        : ', msg['zone_id'])
-            print('  - Delay count    : ', msg['delay_count'])
+                _LOGGER.debug('    - %s : %s' % (description, zone_status_values[i-1][int(zone_status_binary[-i])]))
+            _LOGGER.debug('  - Zone id        : {}'.format(msg['zone_id']))
+            _LOGGER.debug('  - Delay count    : {}'.format(msg['delay_count']))
             for i, value in enumerate(msg['delay_list']):
-                print('    - %s : %s' % (i, value))
+                _LOGGER.debug('    - %s : %s' % (i, value))
 
         # Route Discovery Confirmation
         elif msg_type == b'8701':
-            print('RESPONSE 8701: Route Discovery Confirmation')
-            print('  - Sequence       : ', hexlify(msg_data[:1]))
-            print('  - Status         : ', hexlify(msg_data[1:2]))
-            print('  - Network status : ', hexlify(msg_data[2:3]))
-            print('  - Message data   : ', hexlify(msg_data))
+            _LOGGER.debug('RESPONSE 8701: Route Discovery Confirmation')
+            _LOGGER.debug('  - Sequence       : {}'.format(hexlify(msg_data[:1])))
+            _LOGGER.debug('  - Status         : {}'.format(hexlify(msg_data[1:2])))
+            _LOGGER.debug('  - Network status : {}'.format(hexlify(msg_data[2:3])))
+            _LOGGER.debug('  - Message data   : {}'.format(hexlify(msg_data)))
 
         # APS Data Confirm Fail
         elif msg_type == b'8702':
@@ -466,23 +470,23 @@ class ZiGate():
                                   ])
             msg = self.decode_struct(struct, msg_data)
 
-            print('RESPONSE 8702 : APS Data Confirm Fail')
-            print('  - Status         : ', msg['status'])
-            print('  - Src endpoint   : ', msg['src_endpoint'])
-            print('  - Dst endpoint   : ', msg['dst_endpoint'])
-            print('  - Dst mode       : ', msg['dst_address_mode'])
-            print('  - Dst address    : ', msg['dst_address'])
-            print('  - Sequence       : ', msg['sequence'])
+            _LOGGER.debug('RESPONSE 8702 : APS Data Confirm Fail')
+            _LOGGER.debug('  - Status         : {}'.format(msg['status']))
+            _LOGGER.debug('  - Src endpoint   : {}'.format(msg['src_endpoint']))
+            _LOGGER.debug('  - Dst endpoint   : {}'.format(msg['dst_endpoint']))
+            _LOGGER.debug('  - Dst mode       : {}'.format(msg['dst_address_mode']))
+            _LOGGER.debug('  - Dst address    : {}'.format(msg['dst_address']))
+            _LOGGER.debug('  - Sequence       : {}'.format(msg['sequence']))
         
         # No handling for this type of message
         else:
-            print('RESPONSE %s : Unknown Message' % msg_type.decode())
-            print('  - After decoding  : ', hexlify(data))
-            print('  - MsgType         : ', msg_type)
-            print('  - MsgLength       : ', hexlify(data[2:4]))
-            print('  - ChkSum          : ', hexlify(data[4:5]))
-            print('  - Data            : ', hexlify(msg_data))
-            print('  - RSSI            : ', hexlify(data[-1:]))
+            _LOGGER.debug('RESPONSE %s : Unknown Message' % msg_type.decode())
+            _LOGGER.debug('  - After decoding  : {}'.format(hexlify(data)))
+            _LOGGER.debug('  - MsgType         : {}'.format(msg_type))
+            _LOGGER.debug('  - MsgLength       : {}'.format(hexlify(data[2:4])))
+            _LOGGER.debug('  - ChkSum          : {}'.format(hexlify(data[4:5])))
+            _LOGGER.debug('  - Data            : {}'.format(hexlify(msg_data)))
+            _LOGGER.debug('  - RSSI            : {}'.format(hexlify(data[-1:])))
 
     def interpret_attribute(self, msg_data):
         struct = OrderedDict([('sequence', 8),
@@ -505,84 +509,81 @@ class ZiGate():
         self.set_device_property(device_addr, ZIGATE_LAST_SEEN, strftime('%Y-%m-%d %H:%M:%S'))
 
         if msg['sequence'] == b'00':
-            print('  - Sensor type announce (Start after pairing 1)')
+            _LOGGER.debug('  - Sensor type announce (Start after pairing 1)')
         elif msg['sequence'] == b'01':
-            print('  - Something announce (Start after pairing 2)')
+            _LOGGER.debug('  - Something announce (Start after pairing 2)')
 
         # Device type
         if cluster_id == b'0000':
             if attribute_id == b'0005':
                 self.set_device_property(device_addr, 'Type', attribute_data.decode())
-                print(' * type : ', attribute_data)
+                _LOGGER.info(' * type : {}'.format(attribute_data))
         # Button status
         elif cluster_id == b'0006':
-            print('  * General: On/Off')
+            _LOGGER.info('  * General: On/Off')
             if attribute_id == b'0000':
                 if attribute_data == b'00':
-                    print('  * Closed/Taken off/Press')
+                    _LOGGER.info('  * Closed/Taken off/Press')
                 else:
-                    print('  * Open/Release button')
+                    _LOGGER.debug('  * Open/Release button')
             elif attribute_id == b'8000':
-                print('  * Multi click')
-                print('  * Pressed: ', int(hexlify(attribute_data), 16), ' times')
+                _LOGGER.info('  * Multi click')
+                _LOGGER.info('  * Pressed: ', int(hexlify(attribute_data), 16), ' times')
         # Movement
         elif cluster_id == b'000c':  # Unknown cluster id
-            print('  * Rotation horizontal')
+            _LOGGER.info('  * Rotation horizontal')
         elif cluster_id == b'0012':  # Unknown cluster id
             if attribute_id == b'0055':
                 if attribute_data == b'0000':
-                    print('  * Shaking')
+                    _LOGGER.info('  * Shaking')
                 elif attribute_data == b'0055':
-                    print('  * Rotating vertical')
-                    print('  * Rotated: ', int(hexlify(attribute_data), 16), '°')
+                    _LOGGER.info('  * Rotating vertical')
+                    _LOGGER.info('  * Rotated: ', int(hexlify(attribute_data), 16), '°')
                 elif attribute_data == b'0103':
-                    print('  * Sliding')
+                    _LOGGER.info('  * Sliding')
         # Temperature
         elif cluster_id == b'0402':
             temperature = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, ZIGATE_TEMPERATURE, temperature)
-            print('  * Measurement: Temperature'),
-            print('  * Value: ', temperature, '°C')
+            _LOGGER.info('  * Measurement: Temperature'),
+            _LOGGER.info('  * Value: {}'.format(temperature, '°C'))
         # Atmospheric Pressure
         elif cluster_id == b'0403':
-            print('  * Atmospheric pressure')
+            _LOGGER.info('  * Atmospheric pressure')
             pressure = int(hexlify(attribute_data), 16)
             if attribute_id == b'0000':
                 self.set_device_property(device_addr, ZIGATE_PRESSURE, pressure)
-                print('  * Value: ', pressure, 'mb')
+                _LOGGER.info('  * Value: {}'.format(pressure, 'mb'))
             elif attribute_id == b'0010':
                 self.set_device_property(device_addr, ZIGATE_DETAILED_PRESSURE, pressure/10)
-                print('  * Value: ', pressure/10, 'mb')
+                _LOGGER.info('  * Value: {}'.format(pressure/10, 'mb'))
             elif attribute_id == b'0014':
-                print('  * Value unknown')
+                _LOGGER.info('  * Value unknown')
         # Humidity
         elif cluster_id == b'0405':
             humidity = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, ZIGATE_HUMIDITY, humidity)
-            print('  * Measurement: Humidity')
-            print('  * Value: ', humidity, '%')
+            _LOGGER.debug('  * Measurement: Humidity')
+            _LOGGER.debug('  * Value: {}'.format(humidity, '%'))
         # Presence Detection
         elif cluster_id == b'0406':
-            print('   * Presence detection')  # Only sent when movement is detected
+            _LOGGER.debug('   * Presence detection')  # Only sent when movement is detected
 
-        print('  FROM ADDRESS      : ', msg['short_addr'])
-        print('  - Source EndPoint : ', msg['endpoint'])
-        print('  - Cluster ID      : ', msg['cluster_id'])
-        print('  - Attribute ID    : ', msg['attribute_id'])
-        print('  - Attribute type  : ', msg['attribute_type'])
-        print('  - Attribute size  : ', msg['attribute_size'])
-        print('  - Attribute data  : ', hexlify(msg['attribute_data']))
+        _LOGGER.info('  FROM ADDRESS      : {}'.format(msg['short_addr']))
+        _LOGGER.debug('  - Source EndPoint : {}'.format(msg['endpoint']))
+        _LOGGER.debug('  - Cluster ID      : {}'.format(msg['cluster_id']))
+        _LOGGER.debug('  - Attribute ID    : {}'.format(msg['attribute_id']))
+        _LOGGER.debug('  - Attribute type  : {}'.format(msg['attribute_type']))
+        _LOGGER.debug('  - Attribute size  : {}'.format(msg['attribute_size']))
+        _LOGGER.debug('  - Attribute data  : {}'.format(hexlify(msg['attribute_data'])))
 
     def list_devices(self):
-        print('-- DEVICE REPORT -------------------------')
+        _LOGGER.debug('-- DEVICE REPORT -------------------------')
         for addr in self._devices_info.keys():
-            print('- addr : ', addr)
+            _LOGGER.info('- addr : {}'.format(addr))
             for k,v in self._devices_info[addr].items():
-                if type(k) is tuple:
-                    print('    * ', k, ' : ', v, ' (',CLUSTERS[k[0]],')')
-                else:
-                    print('    * ', k, ' : ', v) 
-        print('-- DEVICE REPORT - END -------------------')
+                _LOGGER.info('    * {} : {}'.format(k, v))
+        _LOGGER.debug('-- DEVICE REPORT - END -------------------')
 
 
 # Functions when used with serial & threads
@@ -642,7 +643,7 @@ class Threaded_connection(object):
 #        try:
 #            self.device.read_data(data)
 #        except:
-#            print('ERROR')
+#            _LOGGER.debug('ERROR')
 #
 #    def connection_lost(self, exc):
 #        pass
