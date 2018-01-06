@@ -37,12 +37,18 @@ CLUSTERS = {b'0000':'General: Basic',
 
 LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Information', 'Debug']
 
+# properties
+ZIGATE_TEMPERATURE = 'temperature'
+ZIGATE_PRESSURE = 'pressure'
+ZIGATE_DETAILED_PRESSURE = 'detailed pressure'
+ZIGATE_HUMIDITY = 'humidity'
+ZIGATE_LAST_SEEN = 'last seen'
 
 class ZiGate():
 
     def __init__(self):
         self._buffer = b''
-        self.devices = {}
+        self._devices_info = {}
 
     @staticmethod
     def zigate_encode(data):
@@ -93,14 +99,17 @@ class ZiGate():
 
         return tmp
 
+    # register valuable (i.e. non technical properties) for futur use
     def set_device_property(self, addr, property_id, property_data):
         """
         log property / attribute value in a device based dictionnary
         please note that short addr is not stable if device is reset (still have to find the unique ID)
+        all data stored must be directly usable (i.e no bytes)
         """
-        if not addr in self.devices:
-            self.devices[addr] = {}
-        self.devices[addr][property_id] = property_data
+        str_addr = addr.decode()
+        if not str_addr in self._devices_info:
+            self._devices_info[str_addr] = {}
+        self._devices_info[str_addr][property_id] = property_data
 
     # Must be called from a thread loop or asyncio event loop
     def read_data(self, data):
@@ -493,8 +502,7 @@ class ZiGate():
         attribute_id = msg['attribute_id']
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
-        self.set_device_property(device_addr, (cluster_id, attribute_id), attribute_data)  # register tech value
-        self.set_device_property(device_addr, 'Last seen', strftime('%Y-%m-%d %H:%M:%S'))
+        self.set_device_property(device_addr, ZIGATE_LAST_SEEN, strftime('%Y-%m-%d %H:%M:%S'))
 
         if msg['sequence'] == b'00':
             print('  - Sensor type announce (Start after pairing 1)')
@@ -504,7 +512,7 @@ class ZiGate():
         # Device type
         if cluster_id == b'0000':
             if attribute_id == b'0005':
-                self.set_device_property(device_addr, 'Type', attribute_data)
+                self.set_device_property(device_addr, 'Type', attribute_data.decode())
                 print(' * type : ', attribute_data)
         # Button status
         elif cluster_id == b'0006':
@@ -532,7 +540,7 @@ class ZiGate():
         # Temperature
         elif cluster_id == b'0402':
             temperature = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, 'Temperature', temperature)
+            self.set_device_property(device_addr, ZIGATE_TEMPERATURE, temperature)
             print('  * Measurement: Temperature'),
             print('  * Value: ', temperature, '°C')
         # Atmospheric Pressure
@@ -540,17 +548,17 @@ class ZiGate():
             print('  * Atmospheric pressure')
             pressure = int(hexlify(attribute_data), 16)
             if attribute_id == b'0000':
-                self.set_device_property(device_addr, 'Pressure', pressure)
+                self.set_device_property(device_addr, ZIGATE_PRESSURE, pressure)
                 print('  * Value: ', pressure, 'mb')
             elif attribute_id == b'0010':
-                self.set_device_property(device_addr, 'Pressure - detailed', pressure/10)
+                self.set_device_property(device_addr, ZIGATE_DETAILED_PRESSURE, pressure/10)
                 print('  * Value: ', pressure/10, 'mb')
             elif attribute_id == b'0014':
                 print('  * Value unknown')
         # Humidity
         elif cluster_id == b'0405':
             humidity = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, 'Humidity', humidity)
+            self.set_device_property(device_addr, ZIGATE_HUMIDITY, humidity)
             print('  * Measurement: Humidity')
             print('  * Value: ', humidity, '%')
         # Presence Detection
@@ -567,9 +575,9 @@ class ZiGate():
 
     def list_devices(self):
         print('-- DEVICE REPORT -------------------------')
-        for addr in self.devices.keys():
+        for addr in self._devices_info.keys():
             print('- addr : ', addr)
-            for k,v in self.devices[addr].items():
+            for k,v in self._devices_info[addr].items():
                 if type(k) is tuple:
                     print('    * ', k, ' : ', v, ' (',CLUSTERS[k[0]],')')
                 else:
