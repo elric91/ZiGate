@@ -39,13 +39,18 @@ CLUSTERS = {b'0000':'General: Basic',
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
 
-# properties
-ZIGATE_TEMPERATURE = 'temperature'
-ZIGATE_PRESSURE = 'pressure'
-ZIGATE_DETAILED_PRESSURE = 'detailed pressure'
-ZIGATE_HUMIDITY = 'humidity'
-ZIGATE_LAST_SEEN = 'last seen'
+# states & properties
+ZGT_TEMPERATURE = 'temperature'
+ZGT_PRESSURE = 'pressure'
+ZGT_DETAILED_PRESSURE = 'detailed pressure'
+ZGT_HUMIDITY = 'humidity'
+ZGT_LAST_SEEN = 'last seen'
+ZGT_STATE = 'state'
+ZGT_STATE_OPEN = 'open'
+ZGT_STATE_CLOSED = 'closed'
 
+# commands for external use
+ZGT_CMD_NEW_DEVICE = 'new device'
 
 class ZiGate():
 
@@ -114,6 +119,15 @@ class ZiGate():
             self._devices_info[str_addr] = {}
         self._devices_info[str_addr][property_id] = property_data
 
+    # Must be overridden by external program
+    def set_external_command(self, command_type, **kwargs):
+        pass
+
+    # Must be defined and assigned in the transport object
+    @staticmethod
+    def send_to_transport(data):
+        pass
+
     # Must be called from a thread loop or asyncio event loop
     def read_data(self, data):
         """Read ZiGate output and split messages"""
@@ -163,11 +177,6 @@ class ZiGate():
         _LOGGER.debug('--------------------------------------')
 
         self.send_to_transport(encoded_output)
-
-    # Must be defined and assigned in the transport object
-    @staticmethod
-    def send_to_transport(data):
-        pass
 
     @staticmethod
     def decode_struct(struct, msg):
@@ -237,7 +246,9 @@ class ZiGate():
             struct = OrderedDict([('short_addr', 16), ('mac_addr', 64), ('mac_capability', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
 
-            self.set_device_property(msg['short_addr'], 'MAC', msg['mac_addr'])
+            self.set_external_command(ZGT_CMD_NEW_DEVICE, addr=msg['short_addr'].decode())
+            self.set_device_property(msg['short_addr'], 'MAC', msg['mac_addr'].decode())
+
             _LOGGER.debug('RESPONSE 004d : Device Announce')
             _LOGGER.debug('  * From address   : {}'.format(msg['short_addr']))
             _LOGGER.debug('  * MAC address    : {}'.format(msg['mac_addr']))
@@ -261,12 +272,12 @@ class ZiGate():
         
         # Default Response
         elif msg_type == b'8001':
-            ZIGATE_LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Information', 'Debug']
+            ZGT_LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error', 'Warning', 'Notice', 'Information', 'Debug']
             struct = OrderedDict([('level', 'int'), ('info', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
 
             _LOGGER.debug('RESPONSE 8001 : Log Message')
-            _LOGGER.debug('  - Log Level : {}'.format(ZIGATE_LOG_LEVELS[msg['level']]))
+            _LOGGER.debug('  - Log Level : {}'.format(ZGT_LOG_LEVELS[msg['level']]))
             _LOGGER.debug('  - Log Info  : {}'.format(msg['info']))
         
         # Version List
@@ -385,7 +396,8 @@ class ZiGate():
                                   ('endpoint_list', 8)
                                   ])
             msg = self.decode_struct(struct, msg_data)
-
+            self.set_device_property(msg['addr'], 'endpoints', [elt.decode() for elt in msg['endpoint_list']])
+            
             _LOGGER.debug('RESPONSE 8045 : Active Endpoints List')
             _LOGGER.debug('  - Sequence       : {}'.format(msg['sequence']))
             _LOGGER.debug('  - Status         : {}'.format(msg['status']))
@@ -506,7 +518,7 @@ class ZiGate():
         attribute_id = msg['attribute_id']
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
-        self.set_device_property(device_addr, ZIGATE_LAST_SEEN, strftime('%Y-%m-%d %H:%M:%S'))
+        self.set_device_property(device_addr, ZGT_LAST_SEEN, strftime('%Y-%m-%d %H:%M:%S'))
 
         if msg['sequence'] == b'00':
             _LOGGER.debug('  - Sensor type announce (Start after pairing 1)')
@@ -516,16 +528,18 @@ class ZiGate():
         # Device type
         if cluster_id == b'0000':
             if attribute_id == b'0005':
-                self.set_device_property(device_addr, 'Type', attribute_data.decode())
+                self.set_device_property(device_addr, 'type', attribute_data.decode())
                 _LOGGER.info(' * type : {}'.format(attribute_data))
         # Button status
         elif cluster_id == b'0006':
             _LOGGER.info('  * General: On/Off')
             if attribute_id == b'0000':
-                if attribute_data == b'00':
+                if hexlify(attribute_data) == b'00':
+                    self.set_device_property(device_addr, ZGT_STATE, ZGT_STATE_CLOSED)
                     _LOGGER.info('  * Closed/Taken off/Press')
                 else:
-                    _LOGGER.debug('  * Open/Release button')
+                    self.set_device_property(device_addr, ZGT_STATE, ZGT_STATE_OPEN)
+                    _LOGGER.info('  * Open/Release button')
             elif attribute_id == b'8000':
                 _LOGGER.info('  * Multi click')
                 _LOGGER.info('  * Pressed: ', int(hexlify(attribute_data), 16), ' times')
@@ -534,17 +548,17 @@ class ZiGate():
             _LOGGER.info('  * Rotation horizontal')
         elif cluster_id == b'0012':  # Unknown cluster id
             if attribute_id == b'0055':
-                if attribute_data == b'0000':
+                if hexlify(attribute_data) == b'0000':
                     _LOGGER.info('  * Shaking')
-                elif attribute_data == b'0055':
+                elif hexlify(attribute_data) == b'0055':
                     _LOGGER.info('  * Rotating vertical')
                     _LOGGER.info('  * Rotated: ', int(hexlify(attribute_data), 16), '°')
-                elif attribute_data == b'0103':
+                elif hexlify(attribute_data) == b'0103':
                     _LOGGER.info('  * Sliding')
         # Temperature
         elif cluster_id == b'0402':
             temperature = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, ZIGATE_TEMPERATURE, temperature)
+            self.set_device_property(device_addr, ZGT_TEMPERATURE, temperature)
             _LOGGER.info('  * Measurement: Temperature'),
             _LOGGER.info('  * Value: {}'.format(temperature, '°C'))
         # Atmospheric Pressure
@@ -552,17 +566,17 @@ class ZiGate():
             _LOGGER.info('  * Atmospheric pressure')
             pressure = int(hexlify(attribute_data), 16)
             if attribute_id == b'0000':
-                self.set_device_property(device_addr, ZIGATE_PRESSURE, pressure)
+                self.set_device_property(device_addr, ZGT_PRESSURE, pressure)
                 _LOGGER.info('  * Value: {}'.format(pressure, 'mb'))
             elif attribute_id == b'0010':
-                self.set_device_property(device_addr, ZIGATE_DETAILED_PRESSURE, pressure/10)
+                self.set_device_property(device_addr, ZGT_DETAILED_PRESSURE, pressure/10)
                 _LOGGER.info('  * Value: {}'.format(pressure/10, 'mb'))
             elif attribute_id == b'0014':
                 _LOGGER.info('  * Value unknown')
         # Humidity
         elif cluster_id == b'0405':
             humidity = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, ZIGATE_HUMIDITY, humidity)
+            self.set_device_property(device_addr, ZGT_HUMIDITY, humidity)
             _LOGGER.debug('  * Measurement: Humidity')
             _LOGGER.debug('  * Value: {}'.format(humidity, '%'))
         # Presence Detection
@@ -584,6 +598,11 @@ class ZiGate():
             for k,v in self._devices_info[addr].items():
                 _LOGGER.info('    * {} : {}'.format(k, v))
         _LOGGER.debug('-- DEVICE REPORT - END -------------------')
+
+    def permit_join(self):
+        """permit join for 30 secs (1E)"""
+        self.send_data("0049", "FFFC1E00")
+
 
 
 # Functions when used with serial & threads
