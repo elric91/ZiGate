@@ -337,6 +337,7 @@ class ZiGate():
             mac_flags_binary = format(int(msg['mac_flags'], 16), '08b')
             bit_field_binary = format(int(msg['bit_field'], 16), '016b')
 
+            # Length 16, 7-15 Reserved
             server_mask_description = ['Primary trust center',
                                        'Back up trust center',
                                        'Primary binding cache',
@@ -344,15 +345,15 @@ class ZiGate():
                                        'Primary discovery cache',
                                        'Backup discovery cache',
                                        'Network manager']
-                                       # Length 16, 7-15 Reserved
+            # Length 8, 2-7 Reserved
             descriptor_capability_desc = ['Extended Active endpoint list',
                                           'Extended simple descriptor list']
-                                          # Length 8, 2-7 Reserved
+            # Length 8
             mac_capability_desc = ['Alternate PAN Coordinator', 'Device Type',
                                    'Power source', 'Receiver On when Idle',
                                    'Reserved', 'Reserved',
-                                   'Security capability','Allocate Address']
-                                   # Length 8
+                                   'Security capability', 'Allocate Address']
+            # Length 16
             bit_field_desc = ['Logical type: Coordinator',
                               'Logical type: Router',
                               'Logical type: End Device',
@@ -363,7 +364,6 @@ class ZiGate():
                               'Frequency band', 'Frequency band',
                               'Frequency band', 'Frequency band',
                               'Frequency band']
-                               # Length 16
 
             _LOGGER.debug('RESPONSE 8042 : Node Descriptor')
             _LOGGER.debug('  - Sequence          : {}'.format(msg['sequence']))
@@ -430,17 +430,25 @@ class ZiGate():
             _LOGGER.debug('  - Length            : {}'.format(msg['length']))
             _LOGGER.debug('  - EndPoint          : {}'.format(msg['endpoint']))
             _LOGGER.debug('  - Profile ID        : {}'.format(msg['profile']))
-            _LOGGER.debug('  - Device ID         : {}'.format(msg['device_id']))
-            _LOGGER.debug('  - IN cluster count  : {}'.format(msg['in_cluster_count']))
+            _LOGGER.debug('  - Device ID         : {}'.
+                          format(msg['device_id']))
+            _LOGGER.debug('  - IN cluster count  : {}'.
+                          format(msg['in_cluster_count']))
             for i, cluster_id in enumerate(msg['in_cluster_list']):
-                _LOGGER.debug('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
-            _LOGGER.debug('  - OUT cluster count  : {}'.format(msg['out_cluster_count']))
+                _LOGGER.debug('    - Cluster %s : %s (%s)' %
+                              (i, cluster_id,
+                               CLUSTERS.get(cluster_id, 'unknown')))
+            _LOGGER.debug('  - OUT cluster count  : {}'.
+                          format(msg['out_cluster_count']))
             for i, cluster_id in enumerate(msg['out_cluster_list']):
-                _LOGGER.debug('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
+                _LOGGER.debug('    - Cluster %s : %s (%s)' %
+                              (i, cluster_id,
+                               CLUSTERS.get(cluster_id, 'unknown')))
 
         # Power Descriptor
         elif msg_type == b'8044':
-            struct = OrderedDict([('sequence', 8), ('status', 8), ('bit_field', 16), ])
+            struct = OrderedDict([('sequence', 8), ('status', 8),
+                                 ('bit_field', 16), ])
             msg = self.decode_struct(struct, msg_data)
 
             bit_field_binary = format(int(msg['bit_field'], 16), '016b')
@@ -475,7 +483,8 @@ class ZiGate():
                                '[CURRENT]' if bit_field_binary[4:8][-i] == '1'
                                else ''))
             _LOGGER.debug('    - Level           : {}'.
-                          format(current_power_level.get(bit_field_binary[:4], 'Unknown')))
+                          format(current_power_level.get(bit_field_binary[:4],
+                                                         'Unknown')))
 
         # Endpoint List
         elif msg_type == b'8045':
