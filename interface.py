@@ -45,9 +45,12 @@ ZGT_PRESSURE = 'pressure'
 ZGT_DETAILED_PRESSURE = 'detailed pressure'
 ZGT_HUMIDITY = 'humidity'
 ZGT_LAST_SEEN = 'last seen'
+ZGT_EVENT = 'event'
+ZGT_EVENT_PRESENCE = 'presence detected'
 ZGT_STATE = 'state'
 ZGT_STATE_OPEN = 'open'
 ZGT_STATE_CLOSED = 'closed'
+
 
 # commands for external use
 ZGT_CMD_NEW_DEVICE = 'new device'
@@ -581,7 +584,9 @@ class ZiGate():
             _LOGGER.debug('  * Value: {}'.format(humidity, '%'))
         # Presence Detection
         elif cluster_id == b'0406':
-            _LOGGER.debug('   * Presence detection')  # Only sent when movement is detected
+            if hexlify(attribute_data) == b'01':
+                self.set_device_property(device_addr, ZGT_EVENT, ZGT_EVENT_PRESENCE)
+                _LOGGER.debug('   * Presence detection')  # Only sent when movement is detected
 
         _LOGGER.info('  FROM ADDRESS      : {}'.format(msg['short_addr']))
         _LOGGER.debug('  - Source EndPoint : {}'.format(msg['endpoint']))
