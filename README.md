@@ -8,7 +8,7 @@ How to use :
 ```python
 from interface import *
 z = ZiGate()
-conn = Threaded_connection(z)
+conn = ThreadedConnection(z)
 z.send_data('0049', 'FFFCFE00')
 ```
 - (last line ask for join request)

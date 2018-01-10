@@ -56,7 +56,7 @@ ZGT_STATE_CLOSED = 'closed'
 ZGT_CMD_NEW_DEVICE = 'new device'
 
 
-class ZiGate():
+class ZiGate:
 
     def __init__(self):
         self._buffer = b''
@@ -300,14 +300,14 @@ class ZiGate():
 
         # Default Response
         elif msg_type == b'8001':
-            ZGT_LOG_LEVELS = ['Emergency', 'Alert', 'Critical', 'Error',
+            zgt_log_levels = ['Emergency', 'Alert', 'Critical', 'Error',
                               'Warning', 'Notice', 'Information', 'Debug']
             struct = OrderedDict([('level', 'int'), ('info', 'rawend')])
             msg = self.decode_struct(struct, msg_data)
 
             _LOGGER.debug('RESPONSE 8001 : Log Message')
             _LOGGER.debug('  - Log Level : {}'.
-                          format(ZGT_LOG_LEVELS[msg['level']]))
+                          format(zgt_log_levels[msg['level']]))
             _LOGGER.debug('  - Log Info  : {}'.format(msg['info']))
 
         # Version List
@@ -338,13 +338,13 @@ class ZiGate():
             bit_field_binary = format(int(msg['bit_field'], 16), '016b')
 
             # Length 16, 7-15 Reserved
-            server_mask_description = ['Primary trust center',
-                                       'Back up trust center',
-                                       'Primary binding cache',
-                                       'Backup binding cache',
-                                       'Primary discovery cache',
-                                       'Backup discovery cache',
-                                       'Network manager']
+            server_mask_desc = ['Primary trust center',
+                                'Back up trust center',
+                                'Primary binding cache',
+                                'Backup binding cache',
+                                'Primary discovery cache',
+                                'Backup discovery cache',
+                                'Network manager']
             # Length 8, 2-7 Reserved
             descriptor_capability_desc = ['Extended Active endpoint list',
                                           'Extended simple descriptor list']
@@ -394,7 +394,7 @@ class ZiGate():
             _LOGGER.debug('  - Mac flags         : {}'.
                           format(msg['mac_flags']))
             _LOGGER.debug('    - Binary          : {}'.
-                          format(mmac_flags_binary))
+                          format(mac_flags_binary))
             for i, description in enumerate(mac_capability_desc, 1):
                 _LOGGER.debug('    - %s : %s' %
                               (description,
@@ -742,7 +742,7 @@ class ZiGate():
 
 
 # Functions when used with serial & threads
-class Threaded_connection(object):
+class ThreadedConnection(object):
 
     def __init__(self, device, port='/dev/ttyUSB0'):
         import serial
@@ -810,7 +810,7 @@ if __name__ == "__main__":
     zigate = ZiGate()
 
     # Thread base connection
-    connection = Threaded_connection(zigate)
+    connection = ThreadedConnection(zigate)
 
     # Asyncio based connection
     # (comment thread elements)
