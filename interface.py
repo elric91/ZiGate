@@ -48,8 +48,8 @@ ZGT_LAST_SEEN = 'last seen'
 ZGT_EVENT = 'event'
 ZGT_EVENT_PRESENCE = 'presence detected'
 ZGT_STATE = 'state'
-ZGT_STATE_OPEN = 'open'
-ZGT_STATE_CLOSED = 'closed'
+ZGT_STATE_ON = 'on-press'
+ZGT_STATE_OFF = 'off-release'
 
 
 # commands for external use
@@ -663,11 +663,11 @@ class ZiGate:
             if attribute_id == b'0000':
                 if hexlify(attribute_data) == b'00':
                     self.set_device_property(device_addr, ZGT_STATE,
-                                             ZGT_STATE_CLOSED)
+                                             ZGT_STATE_ON)
                     _LOGGER.info('  * Closed/Taken off/Press')
                 else:
                     self.set_device_property(device_addr, ZGT_STATE,
-                                             ZGT_STATE_OPEN)
+                                             ZGT_STATE_OFF)
                     _LOGGER.info('  * Open/Release button')
             elif attribute_id == b'8000':
                 _LOGGER.info('  * Multi click')
