@@ -49,6 +49,7 @@ ZGT_EVENT = 'event'
 ZGT_EVENT_PRESENCE = 'presence detected'
 ZGT_STATE = 'state'
 ZGT_STATE_ON = 'on-press'
+ZGT_STATE_MULTI = 'multi_{}'
 ZGT_STATE_OFF = 'off-release'
 
 
@@ -670,9 +671,11 @@ class ZiGate:
                                              ZGT_STATE_OFF)
                     _LOGGER.info('  * Open/Release button')
             elif attribute_id == b'8000':
+                clicks = int(hexlify(attribute_data), 16)
+                self.set_device_property(device_addr, ZGT_STATE,
+                                             ZGT_STATE_MUTLI.format(clicks))
                 _LOGGER.info('  * Multi click')
-                _LOGGER.info('  * Pressed: ',
-                             int(hexlify(attribute_data), 16), ' times')
+                _LOGGER.info('  * Pressed: {} times'.format(clicks))
         # Movement
         elif cluster_id == b'000c':  # Unknown cluster id
             _LOGGER.info('  * Rotation horizontal')
@@ -682,8 +685,8 @@ class ZiGate:
                     _LOGGER.info('  * Shaking')
                 elif hexlify(attribute_data) == b'0055':
                     _LOGGER.info('  * Rotating vertical')
-                    _LOGGER.info('  * Rotated: ',
-                                 int(hexlify(attribute_data), 16), '°')
+                    _LOGGER.info('  * Rotated: {}°'.
+                                 format(int(hexlify(attribute_data), 16)))
                 elif hexlify(attribute_data) == b'0103':
                     _LOGGER.info('  * Sliding')
         # Temperature
