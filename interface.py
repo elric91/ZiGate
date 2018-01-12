@@ -673,7 +673,7 @@ class ZiGate:
             elif attribute_id == b'8000':
                 clicks = int(hexlify(attribute_data), 16)
                 self.set_device_property(device_addr, ZGT_STATE,
-                                             ZGT_STATE_MUTLI.format(clicks))
+                                             ZGT_STATE_MULTI.format(clicks))
                 _LOGGER.info('  * Multi click')
                 _LOGGER.info('  * Pressed: {} times'.format(clicks))
         # Movement
