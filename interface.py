@@ -55,6 +55,7 @@ ZGT_STATE_OFF = 'off-release'
 
 # commands for external use
 ZGT_CMD_NEW_DEVICE = 'new device'
+ZGT_CMD_LIST_ENDPOINTS = 'list endpoints'
 
 
 class ZiGate:
@@ -113,14 +114,15 @@ class ZiGate:
         return tmp
 
     # register valuable (i.e. non technical properties) for futur use
-    def set_device_property(self, addr, property_id, property_data):
+    def set_device_property(self, addr, endpoint, property_id, property_data):
         """
         log property / attribute value in a device based dictionnary
         please note that short addr is not stable if device is reset
         (still have to find the unique ID)
         all data stored must be directly usable (i.e no bytes)
         """
-        str_addr = addr.decode()
+        if endpoint:
+            str_addr = '{}_{}'.format(addr.decode(), endpoint.decode())
         if str_addr not in self._devices_info:
             self._devices_info[str_addr] = {}
         self._devices_info[str_addr][property_id] = property_data
@@ -268,7 +270,7 @@ class ZiGate:
 
             self.set_external_command(ZGT_CMD_NEW_DEVICE,
                                       addr=msg['short_addr'].decode())
-            self.set_device_property(msg['short_addr'], 'MAC',
+            self.set_device_property(msg['short_addr'], None, 'MAC',
                                      msg['mac_addr'].decode())
 
             _LOGGER.debug('RESPONSE 004d : Device Announce')
@@ -494,7 +496,9 @@ class ZiGate:
                                   ('endpoint_list', 8)])
             msg = self.decode_struct(struct, msg_data)
             endpoints = [elt.decode() for elt in msg['endpoint_list']]
-            self.set_device_property(msg['addr'], 'endpoints', endpoints)
+            #self.set_device_property(msg['addr'], None, 'endpoints', endpoints)
+            self.set_external_command(ZGT_CMD_LIST_ENDPOINTS, addr=msg['addr'].decode(),
+                                      endpoints=endpoints)
 
             _LOGGER.debug('RESPONSE 8045 : Active Endpoints List')
             _LOGGER.debug('  - Sequence       : {}'.format(msg['sequence']))
@@ -640,11 +644,12 @@ class ZiGate:
                               ('end', 'rawend')])
         msg = self.decode_struct(struct, msg_data)
         device_addr = msg['short_addr']
+        endpoint = msg['endpoint']
         cluster_id = msg['cluster_id']
         attribute_id = msg['attribute_id']
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
-        self.set_device_property(device_addr, ZGT_LAST_SEEN,
+        self.set_device_property(device_addr, endpoint, ZGT_LAST_SEEN,
                                  strftime('%Y-%m-%d %H:%M:%S'))
 
         if msg['sequence'] == b'00':
@@ -655,7 +660,7 @@ class ZiGate:
         # Device type
         if cluster_id == b'0000':
             if attribute_id == b'0005':
-                self.set_device_property(device_addr, 'type',
+                self.set_device_property(device_addr, endpoint, 'type',
                                          attribute_data.decode())
                 _LOGGER.info(' * type : {}'.format(attribute_data))
         # Button status
@@ -663,16 +668,16 @@ class ZiGate:
             _LOGGER.info('  * General: On/Off')
             if attribute_id == b'0000':
                 if hexlify(attribute_data) == b'00':
-                    self.set_device_property(device_addr, ZGT_STATE,
+                    self.set_device_property(device_addr, endpoint, ZGT_STATE,
                                              ZGT_STATE_ON)
                     _LOGGER.info('  * Closed/Taken off/Press')
                 else:
-                    self.set_device_property(device_addr, ZGT_STATE,
+                    self.set_device_property(device_addr, endpoint, ZGT_STATE,
                                              ZGT_STATE_OFF)
                     _LOGGER.info('  * Open/Release button')
             elif attribute_id == b'8000':
                 clicks = int(hexlify(attribute_data), 16)
-                self.set_device_property(device_addr, ZGT_STATE,
+                self.set_device_property(device_addr, endpoint, ZGT_STATE,
                                              ZGT_STATE_MULTI.format(clicks))
                 _LOGGER.info('  * Multi click')
                 _LOGGER.info('  * Pressed: {} times'.format(clicks))
@@ -692,7 +697,8 @@ class ZiGate:
         # Temperature
         elif cluster_id == b'0402':
             temperature = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, ZGT_TEMPERATURE, temperature)
+            self.set_device_property(device_addr, endpoint, ZGT_TEMPERATURE,
+                                     temperature)
             _LOGGER.info('  * Measurement: Temperature'),
             _LOGGER.info('  * Value: {}'.format(temperature, '°C'))
         # Atmospheric Pressure
@@ -700,10 +706,10 @@ class ZiGate:
             _LOGGER.info('  * Atmospheric pressure')
             pressure = int(hexlify(attribute_data), 16)
             if attribute_id == b'0000':
-                self.set_device_property(device_addr, ZGT_PRESSURE, pressure)
+                self.set_device_property(device_addr, endpoint, ZGT_PRESSURE, pressure)
                 _LOGGER.info('  * Value: {}'.format(pressure, 'mb'))
             elif attribute_id == b'0010':
-                self.set_device_property(device_addr,
+                self.set_device_property(device_addr, endpoint,
                                          ZGT_DETAILED_PRESSURE, pressure/10)
                 _LOGGER.info('  * Value: {}'.format(pressure/10, 'mb'))
             elif attribute_id == b'0014':
@@ -711,14 +717,14 @@ class ZiGate:
         # Humidity
         elif cluster_id == b'0405':
             humidity = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, ZGT_HUMIDITY, humidity)
+            self.set_device_property(device_addr, endpoint, ZGT_HUMIDITY, humidity)
             _LOGGER.info('  * Measurement: Humidity')
             _LOGGER.info('  * Value: {}'.format(humidity, '%'))
         # Presence Detection
         elif cluster_id == b'0406':
             # Only sent when movement is detected
             if hexlify(attribute_data) == b'01':
-                self.set_device_property(device_addr, ZGT_EVENT,
+                self.set_device_property(device_addr, endpoint, ZGT_EVENT,
                                          ZGT_EVENT_PRESENCE)
                 _LOGGER.debug('   * Presence detection')
 
