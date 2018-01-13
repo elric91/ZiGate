@@ -61,6 +61,9 @@ ZGT_CMD_LIST_ENDPOINTS = 'list endpoints'
 class ZiGate:
 
     def __init__(self):
+        from .attributes_helpers import (interpret_attributes)
+        from .commands_helpers import (read_attribute, read_multiple_attributes,
+                                       permit_joint)
         self._buffer = b''
         self._devices_info = {}
 
@@ -146,7 +149,7 @@ class ZiGate:
             # stripping starting 0x01 & ending 0x03
             data_to_decode = \
                 self.zigate_decode(self._buffer[startpos + 1:endpos])
-            self.interpret_data(data_to_decode)
+            self.decode_data(data_to_decode)
             _LOGGER.debug('  # encoded : {}'.
                           format(hexlify(self._buffer[startpos:endpos + 1])))
             _LOGGER.debug('  # decoded : 01{}03'.
@@ -255,7 +258,7 @@ class ZiGate:
 
         return output
 
-    def interpret_data(self, data):
+    def decode_data(self, data):
         """Interpret responses attributes"""
         msg_data = data[5:]
         msg_type = hexlify(data[0:2])
@@ -631,169 +634,10 @@ class ZiGate:
             _LOGGER.debug('  - RSSI            : {}'.format(hexlify(data[-1:]))
                           )
 
-    def interpret_attribute(self, msg_data):
-        struct = OrderedDict([('sequence', 8),
-                              ('short_addr', 16),
-                              ('endpoint', 8),
-                              ('cluster_id', 16),
-                              ('attribute_id', 16),
-                              ('attribute_status', 8),
-                              ('attribute_type', 8),
-                              ('attribute_size', 'len16'),
-                              ('attribute_data', 'raw'),
-                              ('end', 'rawend')])
-        msg = self.decode_struct(struct, msg_data)
-        device_addr = msg['short_addr']
-        endpoint = msg['endpoint']
-        cluster_id = msg['cluster_id']
-        attribute_id = msg['attribute_id']
-        attribute_size = msg['attribute_size']
-        attribute_data = msg['attribute_data']
-        self.set_device_property(device_addr, endpoint, ZGT_LAST_SEEN,
-                                 strftime('%Y-%m-%d %H:%M:%S'))
-
-        if msg['sequence'] == b'00':
-            _LOGGER.debug('  - Sensor type announce (Start after pairing 1)')
-        elif msg['sequence'] == b'01':
-            _LOGGER.debug('  - Something announce (Start after pairing 2)')
-
-        # Device type
-        if cluster_id == b'0000':
-            if attribute_id == b'0005':
-                self.set_device_property(device_addr, endpoint, 'type',
-                                         attribute_data.decode())
-                _LOGGER.info(' * type : {}'.format(attribute_data))
-        # Button status
-        elif cluster_id == b'0006':
-            _LOGGER.info('  * General: On/Off')
-            if attribute_id == b'0000':
-                if hexlify(attribute_data) == b'00':
-                    self.set_device_property(device_addr, endpoint, ZGT_STATE,
-                                             ZGT_STATE_ON)
-                    _LOGGER.info('  * Closed/Taken off/Press')
-                else:
-                    self.set_device_property(device_addr, endpoint, ZGT_STATE,
-                                             ZGT_STATE_OFF)
-                    _LOGGER.info('  * Open/Release button')
-            elif attribute_id == b'8000':
-                clicks = int(hexlify(attribute_data), 16)
-                self.set_device_property(device_addr, endpoint, ZGT_STATE,
-                                             ZGT_STATE_MULTI.format(clicks))
-                _LOGGER.info('  * Multi click')
-                _LOGGER.info('  * Pressed: {} times'.format(clicks))
-        # Movement
-        elif cluster_id == b'000c':  # Unknown cluster id
-            _LOGGER.info('  * Rotation horizontal')
-        elif cluster_id == b'0012':  # Unknown cluster id
-            if attribute_id == b'0055':
-                if hexlify(attribute_data) == b'0000':
-                    _LOGGER.info('  * Shaking')
-                elif hexlify(attribute_data) == b'0055':
-                    _LOGGER.info('  * Rotating vertical')
-                    _LOGGER.info('  * Rotated: {}°'.
-                                 format(int(hexlify(attribute_data), 16)))
-                elif hexlify(attribute_data) == b'0103':
-                    _LOGGER.info('  * Sliding')
-        # Temperature
-        elif cluster_id == b'0402':
-            temperature = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, endpoint, ZGT_TEMPERATURE,
-                                     temperature)
-            _LOGGER.info('  * Measurement: Temperature'),
-            _LOGGER.info('  * Value: {}'.format(temperature, '°C'))
-        # Atmospheric Pressure
-        elif cluster_id == b'0403':
-            _LOGGER.info('  * Atmospheric pressure')
-            pressure = int(hexlify(attribute_data), 16)
-            if attribute_id == b'0000':
-                self.set_device_property(device_addr, endpoint, ZGT_PRESSURE, pressure)
-                _LOGGER.info('  * Value: {}'.format(pressure, 'mb'))
-            elif attribute_id == b'0010':
-                self.set_device_property(device_addr, endpoint,
-                                         ZGT_DETAILED_PRESSURE, pressure/10)
-                _LOGGER.info('  * Value: {}'.format(pressure/10, 'mb'))
-            elif attribute_id == b'0014':
-                _LOGGER.info('  * Value unknown')
-        # Humidity
-        elif cluster_id == b'0405':
-            humidity = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, endpoint, ZGT_HUMIDITY, humidity)
-            _LOGGER.info('  * Measurement: Humidity')
-            _LOGGER.info('  * Value: {}'.format(humidity, '%'))
-        # Presence Detection
-        elif cluster_id == b'0406':
-            # Only sent when movement is detected
-            if hexlify(attribute_data) == b'01':
-                self.set_device_property(device_addr, endpoint, ZGT_EVENT,
-                                         ZGT_EVENT_PRESENCE)
-                _LOGGER.debug('   * Presence detection')
-
-        _LOGGER.info('  FROM ADDRESS      : {}'.format(msg['short_addr']))
-        _LOGGER.debug('  - Source EndPoint : {}'.format(msg['endpoint']))
-        _LOGGER.debug('  - Cluster ID      : {}'.format(msg['cluster_id']))
-        _LOGGER.debug('  - Attribute ID    : {}'.format(msg['attribute_id']))
-        _LOGGER.debug('  - Attribute type  : {}'.format(msg['attribute_type']))
-        _LOGGER.debug('  - Attribute size  : {}'.format(msg['attribute_size']))
-        _LOGGER.debug('  - Attribute data  : {}'.format(
-                                               hexlify(msg['attribute_data'])))
-
-    def read_attribute(self, device_address, device_endpoint, cluster_id, attribute_id):
-        """
-        Sends read attribute command to device
-
-        :param str device_address: length 4. Example "AB01"
-        :param str device_endpoint: length 2. Example "01"
-        :param str cluster_id: length 4. Example "0000"
-        :param str attribute_id: length 4. Example "0005"
-
-        Examples:
-        ========
-        Replace device_address AB01 with your devices address.
-        All clusters and parameters are not available on every device.
-        - Get device manufacturer name: read_attribute('AB01', '01', '0000', '0004')
-        - Get device name: read_attribute('AB01', '01', '0000', '0005')
-        - Get device battery voltage: read_attribute('AB01', '01', '0001', '0006')
-        """
-        cmd = '02' + device_address + '01' + device_endpoint + cluster_id + '00 00 0000 01' + attribute_id
-        self.send_data('0100', cmd)
-
-    def read_multiple_attributes(self, device_address, device_endpoint, cluster_id, first_attribute_id, attributes):
-        """
-        Constructs read_attribute command with multiple attributes and sends it
-
-        :param str device_address: length 4. E
-        :param str device_endpoint: length 2.
-        :param str cluster_id: length 4.
-        :param str first_attribute_id: length 4
-        :param int attributes: How many attributes are requested. Max value 255
-
-        Examples:
-        ========
-        Replace device_address AB01 with your devices address.
-        All clusters and parameters are not available on every device.
-
-        - Get five first attributes from "General: Basic" cluster:
-          read_multiple_attributes('AB01', '01', '0000', '0000', 5)
-        """
-        cmd = '02' + device_address + '01' + device_endpoint + cluster_id + '00 00 0000' + '{:02x}'.format(attributes)
-        for i in range(attributes):
-            cmd += '{:04x}'.format(int(first_attribute_id, 16) + i)
-        self.send_data('0100', cmd)
-
-    def list_devices(self):
-        _LOGGER.debug('-- DEVICE REPORT -------------------------')
-        for addr in self._devices_info.keys():
-            _LOGGER.info('- addr : {}'.format(addr))
-            for k, v in self._devices_info[addr].items():
-                _LOGGER.info('    * {} : {}'.format(k, v))
-        _LOGGER.debug('-- DEVICE REPORT - END -------------------')
-
-    def permit_join(self):
-        """permit join for 30 secs (1E)"""
-        self.send_data("0049", "FFFC1E00")
 
 
 # Functions when used with serial & threads
+# (to be removed once examples tested)
 class ThreadedConnection(object):
 
     def __init__(self, device, port='/dev/ttyUSB0'):
