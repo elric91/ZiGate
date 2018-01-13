@@ -1,4 +1,4 @@
-from ZiGate import *
+from pyzigate.interface import *
 import asyncio
 from functools import partial
 

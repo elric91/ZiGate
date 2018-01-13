@@ -1,4 +1,4 @@
-from ZiGate import *
+from pyzigate.interface import *
 
 # Functions when used with serial & threads
 class ThreadedConnection(object):
