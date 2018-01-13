@@ -1,0 +1,10 @@
+"clusters": {
+  "0006": {
+    "0001": {
+      "data_type": "ZGT_POWER_STATE",
+      "attribute_formula": None,
+      "data_formula": "Shaking"
+    }
+  }
+}
+
