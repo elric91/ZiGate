@@ -4,10 +4,14 @@ setup(
   packages = ['pyzigate'],
   version = '0.1',
   description = 'Interface library for ZiGate (http://zigate./fr)',
-  author = 'Frédéric HARS & ISO-B',
+  author = 'Frédéric HARS & Vesa YLIKYLÄ',
   author_email = 'frederic.hars@gmail.com',
   url = 'https://github.com/elric91/ZiGate',
   download_url = 'https://github.com/elric91/ZiGate/archive/0.1.tar.gz',
   keywords = ['zigate', 'zigbee', 'python3']
-  classifiers = [],
+  classifiers = ['Development Status :: 4 - Beta',
+                 'Programming Language :: Python :: 3',
+                 'License :: OSI Approved :: MIT License',
+                 'Topic :: Software Development :: Libraries :: Python Modules',
+                ],
 )
