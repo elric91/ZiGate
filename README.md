@@ -1,5 +1,4 @@
-# Python draft implementation for ZiGate
-ZiGate / ZigBee devices test program
+# Python library for ZiGate (zigbee gateway, see : http://zigate.fr)
 NB : the homeassistant component is currently under development here : https://github.com/elric91/hass_custom_components
 
 How to use :
