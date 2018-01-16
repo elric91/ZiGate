@@ -1,17 +1,23 @@
 from distutils.core import setup
+
 setup(
-  name = 'pyzigate',
-  packages = ['pyzigate'],
-  version = '0.1',
-  description = 'Interface library for ZiGate (http://zigate./fr)',
-  author = 'Frédéric HARS & Vesa YLIKYLÄ',
-  author_email = 'frederic.hars@gmail.com',
-  url = 'https://github.com/elric91/ZiGate',
-  download_url = 'https://github.com/elric91/ZiGate/archive/0.1.tar.gz',
-  keywords = ['zigate', 'zigbee', 'python3']
-  classifiers = ['Development Status :: 4 - Beta',
-                 'Programming Language :: Python :: 3',
-                 'License :: OSI Approved :: MIT License',
-                 'Topic :: Software Development :: Libraries :: Python Modules',
-                ],
+    name='pyzigate',
+    packages=['pyzigate'],
+    version='0.1',
+    description='Interface library for ZiGate (http://zigate./fr)',
+    author='Frédéric HARS & Vesa YLIKYLÄ',
+    author_email='frederic.hars@gmail.com',
+    url='https://github.com/elric91/ZiGate',
+    download_url='https://github.com/elric91/ZiGate/archive/0.1.tar.gz',
+    keywords=['zigate', 'zigbee', 'python3'],
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: MIT License',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+    ],
+    install_requires=[
+        'pyserial',
+    ],
+    python_requires='>=3',
 )

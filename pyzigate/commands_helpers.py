@@ -54,4 +54,3 @@ class Mixin:
         :type self: Zigate
         """
         self.send_data("0049", "FFFC1E00")
-

@@ -1,6 +1,6 @@
 #! /usr/bin/python3
 from binascii import hexlify
-from time import (sleep, strftime)
+from time import strftime
 from collections import OrderedDict
 import logging
 from . import commands_helpers, attributes_helpers
@@ -354,8 +354,8 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             self._logger.debug('  - Descriptor        : {}'.format(msg['descriptor_capability']))
             self._logger.debug('    - Binary          : {}'.format(descriptor_capability_binary))
             for i, description in enumerate(descriptor_capability_desc, 1):
-                self._logger.debug('    - %s : %s' %
-                              (description, 'Yes' if descriptor_capability_binary[-i] == '1' else 'No'))
+                self._logger.debug('    - %s : %s' % (
+                    description, 'Yes' if descriptor_capability_binary[-i] == '1' else 'No'))
             self._logger.debug('  - Mac flags         : {}'.format(msg['mac_flags']))
             self._logger.debug('    - Binary          : {}'.format(mac_flags_binary))
             for i, description in enumerate(mac_capability_desc, 1):
@@ -421,10 +421,10 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             self._logger.debug('    - Sources         : ')
             for i, description in enumerate(power_sources, 1):
                 self._logger.debug('       - %s : %s %s' %
-                              (description,
-                               'Yes' if bit_field_binary[8:12][-i] == '1' else 'No',
-                               '[CURRENT]' if bit_field_binary[4:8][-i] == '1'else '')
-                              )
+                                   (description,
+                                    'Yes' if bit_field_binary[8:12][-i] == '1' else 'No',
+                                    '[CURRENT]' if bit_field_binary[4:8][-i] == '1' else '')
+                                   )
             self._logger.debug('    - Level           : {}'.format(
                 current_power_level.get(bit_field_binary[:4], 'Unknown')))
 
@@ -435,15 +435,14 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                                   ('endpoint_list', 8)])
             msg = self.decode_struct(struct, msg_data)
             endpoints = [elt.decode() for elt in msg['endpoint_list']]
-            #self.set_device_property(msg['addr'], None, 'endpoints', endpoints)
+            # self.set_device_property(msg['addr'], None, 'endpoints', endpoints)
             self.set_external_command(ZGT_CMD_LIST_ENDPOINTS, addr=msg['addr'].decode(), endpoints=endpoints)
 
             self._logger.debug('RESPONSE 8045 : Active Endpoints List')
             self._logger.debug('  - Sequence       : {}'.format(msg['sequence']))
             self._logger.debug('  - Status         : {}'.format(msg['status']))
             self._logger.debug('  - From address   : {}'.format(msg['addr']))
-            self._logger.debug('  - EndPoint count : {}'.
-                          format(msg['endpoint_count']))
+            self._logger.debug('  - EndPoint count : {}'.format(msg['endpoint_count']))
             for i, endpoint in enumerate(msg['endpoint_list']):
                 self._logger.debug('    * EndPoint %s : %s' % (i, endpoint))
 
