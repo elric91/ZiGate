@@ -1,4 +1,5 @@
 #! /usr/bin/python3
+# coding: utf8
 from binascii import hexlify
 from collections import OrderedDict
 from time import strftime
