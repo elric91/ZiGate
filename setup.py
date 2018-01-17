@@ -16,8 +16,5 @@ setup(
         'License :: OSI Approved :: MIT License',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
-    install_requires=[
-        'pyserial',
-    ],
     python_requires='>=3',
 )
