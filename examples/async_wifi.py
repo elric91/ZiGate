@@ -1,5 +1,6 @@
-from pyzigate.interface import *
+from pyzigate.interface import ZiGate
 import asyncio
+import logging
 from functools import partial
 
 
@@ -9,8 +10,7 @@ class AsyncWiFiConnection(object):
         loop = asyncio.get_event_loop()
         coro = loop.create_connection(ZiGateProtocol, host, port)
         futur = asyncio.run_coroutine_threadsafe(coro, loop)
-        futur.add_done_callback(
-                     partial(self.bind_transport_to_device, device))
+        futur.add_done_callback(partial(self.bind_transport_to_device, device))
         loop.run_forever()
         loop.close()
 
@@ -25,6 +25,12 @@ class AsyncWiFiConnection(object):
         device.send_to_transport = transport.write
 
 class ZiGateProtocol(asyncio.Protocol):
+
+    def __init__(self):
+        super().__init__()
+        self.transport = None
+        self._logger = logging.getLogger(self.__module__)
+        self._logger.setLevel(logging.DEBUG)
 
     def connection_made(self, transport):
         self.transport = transport
