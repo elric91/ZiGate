@@ -1,8 +1,8 @@
-from pyzigate.interface import *
+from pyzigate.interface import ZiGate
+
 
 # Functions when used with serial & threads
 class ThreadedConnection(object):
-
     def __init__(self, device, port='/dev/ttyUSB0'):
         import serial
         import threading
@@ -21,8 +21,8 @@ class ThreadedConnection(object):
     def send(self, data):
         self.cnx.write(data)
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     zigate = ZiGate()
 
     # Thread base connection
