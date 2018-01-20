@@ -5,7 +5,7 @@ How to use :
 - Go in folder
 - Launch ipython3 console
 ```python
-from interface import *
+from pyzigate.interface import *
 z = ZiGate()
 conn = ThreadedConnection(z)
 z.send_data('0049', 'FFFCFE00')
@@ -13,10 +13,6 @@ z.send_data('0049', 'FFFCFE00')
 - (last line ask for join request)
 - put device in join mode (i.e. long press on button)
 - lots of logs
-```python
-z.list.devices()
-```
-- will show the list of last info gathered
 
 ## Session Example
 ```
