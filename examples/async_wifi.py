@@ -1,7 +1,7 @@
-from pyzigate.interface import ZiGate
 import asyncio
-import logging
+import threading
 from functools import partial
+from pyzigate.interface import ZiGate
 
 
 class AsyncWiFiConnection(object):
@@ -24,13 +24,11 @@ class AsyncWiFiConnection(object):
         protocol.device = device
         device.send_to_transport = transport.write
 
-class ZiGateProtocol(asyncio.Protocol):
 
+class ZiGateProtocol(asyncio.Protocol):
     def __init__(self):
         super().__init__()
         self.transport = None
-        self._logger = logging.getLogger(self.__module__)
-        self._logger.setLevel(logging.DEBUG)
 
     def connection_made(self, transport):
         self.transport = transport
@@ -39,17 +37,26 @@ class ZiGateProtocol(asyncio.Protocol):
         try:
             self.device.read_data(data)
         except:
-            _LOGGER.debug('ERROR')
+            ZGT_LOG.debug('ERROR')
 
     def connection_lost(self, exc):
         pass
+
+def start_loop(loop):
+    loop.run_forever()
+    loop.close()    
 
 
 if __name__ == "__main__":
 
     zigate = ZiGate()
 
+    loop = asyncio.get_event_loop()
     # Asyncio based connection
     connection = AsyncWiFiConnection(zigate)
+
+    # Adding loop in a thread for testing purposes (i.e non blocking ipython console)
+    t = threading.Thread(target=start_loop, args=(loop,))
+    t.start()
 
     zigate.send_data('0010')

@@ -1,19 +1,16 @@
-from pyzigate.interface import ZiGate
 import asyncio
 import serial_asyncio
-import logging
+import threading
 from functools import partial
+from pyzigate.interface import ZiGate
 
 
 class AsyncSerialConnection(object):
 
-    def __init__(self, device, port='/dev/ttyUSB0'):
-        loop = asyncio.get_event_loop()
+    def __init__(self, loop, device, port='/dev/ttyUSB0'):
         coro = serial_asyncio.create_serial_connection(loop, ZiGateProtocol, port, baudrate=115200)
         futur = asyncio.run_coroutine_threadsafe(coro, loop)  # Requires python 3.5.1
         futur.add_done_callback(partial(self.bind_transport_to_device, device))
-        loop.run_forever()
-        loop.close()
 
     @staticmethod
     def bind_transport_to_device(device, protocol_refs):
@@ -31,8 +28,6 @@ class ZiGateProtocol(asyncio.Protocol):
     def __init__(self):
         super().__init__()
         self.transport = None
-        self._logger = logging.getLogger(self.__module__)
-        self._logger.setLevel(logging.DEBUG)
 
     def connection_made(self, transport):
         self.transport = transport
@@ -41,17 +36,27 @@ class ZiGateProtocol(asyncio.Protocol):
         try:
             self.device.read_data(data)
         except:
-            self._logger.debug('ERROR')
+            ZGT_LOG.debug('ERROR')
 
     def connection_lost(self, exc):
         pass
+
+def start_loop(loop):
+    loop.run_forever()
+    loop.close()    
 
 
 if __name__ == "__main__":
 
     zigate = ZiGate()
 
+    loop = asyncio.get_event_loop()
     # Asyncio based connection
-    connection = AsyncSerialConnection(zigate)
+    connection = AsyncSerialConnection(loop, zigate)
+
+    # Adding loop in a thread for testing purposes (i.e non blocking ipython console)
+    # not needed when full program is run within the event loop
+    t = threading.Thread(target=start_loop, args=(loop,))
+    t.start()
 
     zigate.send_data('0010')

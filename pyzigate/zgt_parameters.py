@@ -1,3 +1,13 @@
+#! /usr/bin/python3
+# Logging
+import logging
+ZGT_LOG = logging.getLogger('zigate')
+ZGT_LOG.setLevel(logging.DEBUG)
+# Force logging output to console
+_LOGSTREAM = logging.StreamHandler()
+_LOGSTREAM.setLevel(logging.DEBUG)
+ZGT_LOG.addHandler(_LOGSTREAM)
+
 # states & properties
 ZGT_TEMPERATURE = 'temperature'
 ZGT_PRESSURE = 'pressure'
