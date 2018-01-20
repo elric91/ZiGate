@@ -1,5 +1,5 @@
 #! /usr/bin/python3
-from binascii import hexlify
+from binascii import hexlify, unhexlify
 from collections import OrderedDict
 from time import strftime
 from .zgt_parameters import *
@@ -46,6 +46,14 @@ class Mixin:
             if attribute_id == b'0005':
                 self.set_device_property(device_addr, endpoint, 'type', attribute_data.decode())
                 ZGT_LOG.info(' * type : {}'.format(attribute_data))
+            ## proprietary Xiaomi info including battery
+            if attribute_id == b'ff01' and attribute_data != b'':
+                struct = OrderedDict([('start', 16), ('battery', 16), ('end', 'rawend')])
+                raw_info = unhexlify(self.decode_struct(struct, attribute_data)['battery'])
+                battery_info = int(hexlify(raw_info[::-1]), 16)/1000
+                self.set_device_property(device_addr, endpoint, 'battery', battery_info)
+                ZGT_LOG.info('  * Battery info')
+                ZGT_LOG.info('  * Value : {} V'.format(battery_info))
         # Button status
         elif cluster_id == b'0006':
             ZGT_LOG.info('  * General: On/Off')
@@ -78,17 +86,17 @@ class Mixin:
             temperature = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, endpoint, ZGT_TEMPERATURE, temperature)
             ZGT_LOG.info('  * Measurement: Temperature'),
-            ZGT_LOG.info('  * Value: {}'.format(temperature, '°C'))
+            ZGT_LOG.info('  * Value: {} °C'.format(temperature))
         # Atmospheric Pressure
         elif cluster_id == b'0403':
             ZGT_LOG.info('  * Atmospheric pressure')
             pressure = int(hexlify(attribute_data), 16)
             if attribute_id == b'0000':
                 self.set_device_property(device_addr, endpoint, ZGT_PRESSURE, pressure)
-                ZGT_LOG.info('  * Value: {}'.format(pressure, 'mb'))
+                ZGT_LOG.info('  * Value: {} mb'.format(pressure))
             elif attribute_id == b'0010':
                 self.set_device_property(device_addr, endpoint, ZGT_DETAILED_PRESSURE, pressure/10)
-                ZGT_LOG.info('  * Value: {}'.format(pressure/10, 'mb'))
+                ZGT_LOG.info('  * Value: {} mb'.format(pressure/10))
             elif attribute_id == b'0014':
                 ZGT_LOG.info('  * Value unknown')
         # Humidity
@@ -96,7 +104,7 @@ class Mixin:
             humidity = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, endpoint, ZGT_HUMIDITY, humidity)
             ZGT_LOG.info('  * Measurement: Humidity')
-            ZGT_LOG.info('  * Value: {}'.format(humidity, '%'))
+            ZGT_LOG.info('  * Value: {} %'.format(humidity))
         # Presence Detection
         elif cluster_id == b'0406':
             # Only sent when movement is detected
