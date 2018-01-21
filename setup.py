@@ -3,12 +3,12 @@ from distutils.core import setup
 setup(
     name='pyzigate',
     packages=['pyzigate'],
-    version='0.1',
+    version='0.1.0',
     description='Interface library for ZiGate (http://zigate./fr)',
     author='Frédéric HARS & Vesa YLIKYLÄ',
     author_email='frederic.hars@gmail.com',
     url='https://github.com/elric91/ZiGate',
-    download_url='https://github.com/elric91/ZiGate/archive/0.1.tar.gz',
+    download_url='https://github.com/elric91/ZiGate/archive/v0.1.0-beta.tar.gz',
     keywords=['zigate', 'zigbee', 'python3'],
     classifiers=[
         'Development Status :: 4 - Beta',

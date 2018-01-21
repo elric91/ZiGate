@@ -1,8 +1,8 @@
 #! /usr/bin/python3
+import logging
 from binascii import hexlify
 from time import strftime
 from collections import OrderedDict
-import logging
 from . import commands_helpers, attributes_helpers
 from .zgt_parameters import *
 
@@ -37,6 +37,8 @@ CLUSTERS = {b'0000': 'General: Basic',
             b'FF01': 'Xiaomi private',
             b'FF02': 'Xiaomi private'
             }
+
+ZGT_LOG = logging.getLogger('zigate')
 
 
 class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
@@ -549,32 +551,3 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             ZGT_LOG.debug('  - Data            : {}'.format(hexlify(msg_data)))
             ZGT_LOG.debug('  - RSSI            : {}'.format(hexlify(data[-1:])))
 
-
-# Functions when used with serial & threads
-# (to be removed once examples tested)
-class ThreadedConnection(object):
-
-    def __init__(self, device, port='/dev/ttyUSB0'):
-        import serial
-        import threading
-
-        self.device = device
-        self.cnx = serial.Serial(port, 115200, timeout=0)
-        self.thread = threading.Thread(target=self.read).start()
-        device.send_to_transport = self.send
-
-    def read(self):
-        while True:
-            bytesavailable = self.cnx.inWaiting()
-            if bytesavailable > 0:
-                self.device.read_data(self.cnx.read(bytesavailable))
-
-    def send(self, data):
-        self.cnx.write(data)
-
-
-if __name__ == "__main__":
-
-    zigate = ZiGate()
-    connection = ThreadedConnection(zigate)
-    zigate.send_data('0010')

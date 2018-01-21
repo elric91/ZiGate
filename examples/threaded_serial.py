@@ -1,6 +1,3 @@
-from pyzigate.interface import ZiGate
-
-
 # Functions when used with serial & threads
 class ThreadedConnection(object):
     def __init__(self, device, port='/dev/ttyUSB0'):
@@ -23,8 +20,15 @@ class ThreadedConnection(object):
 
 
 if __name__ == "__main__":
-    zigate = ZiGate()
+    import logging
+    from pyzigate.interface import ZiGate
+   
+    # Setup logging on screen, debug mode
+    l = logging.getLogger('zigate')
+    l.setLevel(logging.DEBUG)
+    l.addHandler(logging.StreamHandler())
 
     # Thread base connection
+    zigate = ZiGate()
     connection = ThreadedConnection(zigate)
     zigate.send_data('0010')

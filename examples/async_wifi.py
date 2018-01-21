@@ -1,7 +1,6 @@
 import asyncio
 import threading
 from functools import partial
-from pyzigate.interface import ZiGate
 
 
 class AsyncWiFiConnection(object):
@@ -42,20 +41,29 @@ class ZiGateProtocol(asyncio.Protocol):
     def connection_lost(self, exc):
         pass
 
+
 def start_loop(loop):
     loop.run_forever()
     loop.close()    
 
 
 if __name__ == "__main__":
+    import logging
+    from pyzigate.interface import ZiGate
+   
+    # Setup logging on screen, debug mode
+    l = logging.getLogger('zigate')
+    l.setLevel(logging.DEBUG)
+    l.addHandler(logging.StreamHandler())
 
-    zigate = ZiGate()
 
-    loop = asyncio.get_event_loop()
     # Asyncio based connection
+    zigate = ZiGate()
+    loop = asyncio.get_event_loop()
     connection = AsyncWiFiConnection(zigate)
 
     # Adding loop in a thread for testing purposes (i.e non blocking ipython console)
+    # not needed when full program is run within the event loop
     t = threading.Thread(target=start_loop, args=(loop,))
     t.start()
 

@@ -1,9 +1,11 @@
 #! /usr/bin/python3
+import logging
 from binascii import hexlify, unhexlify
 from collections import OrderedDict
 from time import strftime
 from .zgt_parameters import *
 
+ZGT_LOG = logging.getLogger('zigate')
 
 class Mixin:
     """
