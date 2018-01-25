@@ -239,9 +239,22 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         """Interpret responses attributes"""
         msg_data = data[5:]
         msg_type = hexlify(data[0:2])
+        msg_length = int.from_bytes(data[2:4], byteorder='big', signed=False) 
+        msg_crc = int.from_bytes(data[4:5], byteorder='big', signed=False)
+        msg_rssi = int.from_bytes(data[-1:], byteorder='big', signed=False)
+	
+        if msg_length != len(msg_data) :
+            ZGT_LOG.error('BAD LENGTH {0} != {1}'.format(msg_length,len(msg_data)))
+            return
+
+        computed_crc = self.checksum(data[0:2], data[2:4], data[5:])
+        if msg_crc != computed_crc :
+            ZGT_LOG.error('BAD CRC {0} != {1}'.format(msg_crc,computed_crc))
+            return
 
         # Do different things based on MsgType
         ZGT_LOG.debug('--------------------------------------')
+
         # Device Announce
         if msg_type == b'004d':
             struct = OrderedDict([('short_addr', 16), ('mac_addr', 64),
