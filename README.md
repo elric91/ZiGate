@@ -2,10 +2,18 @@
 NB : the homeassistant component is currently under development here : https://github.com/elric91/hass_custom_components
 
 How to use :
-- Go in folder
+- install pyzigate through pypi (easiest way) : pip3 install pyzigate
+- Grab the threaded\_serial example in example folder
 - Launch ipython3 console
 ```python
-from pyzigate.interface import *
+import logging
+from threaded_serial import ThreadedConnection
+from pyzigate.interface import ZiGate
+
+l = logging.getLogger('zigate')
+l.setLevel(logging.DEBUG)
+l.addHandler(logging.StreamHandler())
+
 z = ZiGate()
 conn = ThreadedConnection(z)
 z.send_data('0049', 'FFFCFE00')
