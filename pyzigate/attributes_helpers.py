@@ -85,7 +85,8 @@ class Mixin:
                     ZGT_LOG.info('  * Sliding')
         # Temperature
         elif cluster_id == b'0402':
-            temperature = int(hexlify(attribute_data), 16) / 100
+            temperature = int.from_bytes(attribute_data, 'big', signed=True) / 100
+            #temperature = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, endpoint, ZGT_TEMPERATURE, temperature)
             ZGT_LOG.info('  * Measurement: Temperature'),
             ZGT_LOG.info('  * Value: {} °C'.format(temperature))
