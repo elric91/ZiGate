@@ -15,4 +15,5 @@ ZGT_STATE_OFF = 'off-release'
 
 # commands for external use
 ZGT_CMD_NEW_DEVICE = 'new device'
+ZGT_CMD_LIST_DEVICES = 'list devices'
 ZGT_CMD_LIST_ENDPOINTS = 'list endpoints'

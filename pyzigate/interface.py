@@ -308,6 +308,25 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             ZGT_LOG.debug('RESPONSE : Version List')
             ZGT_LOG.debug('  - Major version     : {}'.format(msg['major']))
             ZGT_LOG.debug('  - Installer version : {}'.format(msg['installer']))
+        
+        # Device list
+        elif msg_type == b'8015':
+            ZGT_LOG.debug('RESPONSE : Version List')
+
+            while True:
+                struct = OrderedDict([('ID', 8), ('addr', 16), ('IEEE', 64), ('power_source', 'int8'),
+                                      ('link_quality', 'int8'), ('next', 'rawend')])
+                msg = self.decode_struct(struct, msg_data)
+                self.set_external_command(ZGT_CMD_LIST_DEVICES, **msg)
+                ZGT_LOG.debug('  * deviceID     : {}'.format(msg['ID']))
+                ZGT_LOG.debug('  - addr         : {}'.format(msg['addr']))
+                ZGT_LOG.debug('  - IEEE         : {}'.format(msg['IEEE']))
+                ZGT_LOG.debug('  - Power Source : {}'.format(msg['power_source']))
+                ZGT_LOG.debug('  - Link Quality : {}'.format(msg['link_quality']))
+                if len(msg['next']) < 13:
+                    break
+                else:
+                    msg_data = msg['next']
 
         # Node Descriptor
         elif msg_type == b'8042':
