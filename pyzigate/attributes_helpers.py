@@ -83,6 +83,42 @@ class Mixin:
                     ZGT_LOG.info('  * Rotated: {}°'. format(int(hexlify(attribute_data), 16)))
                 elif hexlify(attribute_data) == b'0103':
                     ZGT_LOG.info('  * Sliding')
+        # Illuminance Measurement
+        elif cluster_id == b'0400':
+            # MeasuredValue
+            if attribute_id == b'0000':
+                illuminance = int.from_bytes(attribute_data, 'big', signed=True)
+                self.set_device_property(device_addr, endpoint, ZGT_ILLUMINANCE_MEASUREMENT, illuminance)
+            # MinMeasuredValue
+            elif attribute_id == b'0001':
+                if attribute_data == b'FFFF':
+                    ZGT_LOG.info('Minimum illuminance is unused.')
+                else:
+                    illuminance = int.from_bytes(attribute_data, 'big', signed=True)
+                    ZGT_LOG.info('Minimum illuminance is ', illuminance)
+            # MaxMeasuredValue
+            elif attribute_id == b'0002':
+                if attribute_data == b'FFFF':
+                    ZGT_LOG.info('Maximum illuminance is unused.')
+                else:
+                    illuminance = int.from_bytes(attribute_data, 'big', signed=True)
+                    ZGT_LOG.info('Maximum illuminance is ', illuminance)
+            # Tolerance
+            elif attribute_id == b'0003':
+                illuminance = int.from_bytes(attribute_data, 'big', signed=True)
+                ZGT_LOG.info('Illuminance tolerance is ', illuminance)
+            # Sensor type
+            elif attribute_id == b'0004':
+                sensor_type = 'Unknown'
+                if attribute_data == b'00':
+                    sensor_type = 'Photodiode'
+                elif attribute_data == b'01':
+                    sensor_type = 'CMOS'
+                elif b'02' <= attribute_data <= b'3F':
+                    sensor_type = 'Reserved'
+                elif b'40' <= attribute_data <= b'FE':
+                    sensor_type = 'Reserved for manufacturer'
+                ZGT_LOG.info('Sensor type is: ', sensor_type)
         # Temperature
         elif cluster_id == b'0402':
             temperature = int.from_bytes(attribute_data, 'big', signed=True) / 100
