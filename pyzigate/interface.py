@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 from pyzigate.zgt_parameters import ZGT_LAST_SEEN
 from .features import zigate_feature, commons_feature, attributes_feature, onoff_feature, h_rotation_feature, \
-    v_rotation_feature, illuminance_feature, temperature_feature
+    v_rotation_feature, illuminance_feature, temperature_feature, atmospheric_pressure_feature
 
 
 FEATURES = [zigate_feature.Feature(),
@@ -16,7 +16,8 @@ FEATURES = [zigate_feature.Feature(),
             h_rotation_feature.Feature(),
             v_rotation_feature.Feature(),
             illuminance_feature.Feature(),
-            temperature_feature.Feature()
+            temperature_feature.Feature(),
+            atmospheric_pressure_feature.Feature()
             ]
 
 ZGT_LOG = logging.getLogger('zigate')
@@ -29,7 +30,8 @@ class ZiGate(zigate_feature.CommandsMixin,
              h_rotation_feature.CommandsMixin,
              v_rotation_feature.CommandsMixin,
              illuminance_feature.CommandsMixin,
-             temperature_feature.CommandsMixin):
+             temperature_feature.CommandsMixin,
+             atmospheric_pressure_feature.CommandsMixin):
 
     def __init__(self):
         self._buffer = b''

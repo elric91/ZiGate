@@ -36,20 +36,8 @@ class Mixin:
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
 
-        # Atmospheric Pressure
-        if cluster_id == b'0403':
-            ZGT_LOG.info('  * Atmospheric pressure')
-            pressure = int(hexlify(attribute_data), 16)
-            if attribute_id == b'0000':
-                self.set_device_property(device_addr, endpoint, ZGT_PRESSURE, pressure)
-                ZGT_LOG.info('  * Value: {} mb'.format(pressure))
-            elif attribute_id == b'0010':
-                self.set_device_property(device_addr, endpoint, ZGT_DETAILED_PRESSURE, pressure/10)
-                ZGT_LOG.info('  * Value: {} mb'.format(pressure/10))
-            elif attribute_id == b'0014':
-                ZGT_LOG.info('  * Value unknown')
         # Humidity
-        elif cluster_id == b'0405':
+        if cluster_id == b'0405':
             humidity = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, endpoint, ZGT_HUMIDITY, humidity)
             ZGT_LOG.info('  * Measurement: Humidity')
