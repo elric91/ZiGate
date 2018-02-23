@@ -5,18 +5,20 @@ from time import strftime
 from collections import OrderedDict
 
 from pyzigate.zgt_parameters import ZGT_LAST_SEEN
-from .features import zigate_feature, commons_feature
+from .features import zigate_feature, commons_feature, attributes_feature
 
 
 FEATURES = [zigate_feature.Feature(),
-            commons_feature.Feature()
+            commons_feature.Feature(),
+            attributes_feature.Feature()
             ]
 
 ZGT_LOG = logging.getLogger('zigate')
 
 
 class ZiGate(zigate_feature.CommandsMixin,
-             commons_feature.CommandsMixin):
+             commons_feature.CommandsMixin,
+             attributes_feature.CommandsMixin):
 
     def __init__(self):
         self._buffer = b''
@@ -265,11 +267,6 @@ class ZiGate(zigate_feature.CommandsMixin,
                 ZGT_LOG.debug('  - Something announce (Start after pairing 2)')
 
             if attr_msg['attribute_type'] != b'ff':
-                # 0x10	boolean
-                # 0x18	8-bit bitmap
-                # 0x30	Enumeration : 8bit
-                # 0x42	string
-                attr_val = attribute_data.decode()
                 if attr_msg['attribute_type'] == b'00':
                     # 0x00	Null
                     attr_val = None
@@ -292,6 +289,14 @@ class ZiGate(zigate_feature.CommandsMixin,
                     # 0x29	int16
                     # 0x2a	int32
                     attr_val = int.from_bytes(attribute_data, 'big', signed=False)
+                else:
+                    # 0x18	8-bit bitmap
+                    # 0x30	Enumeration : 8bit
+                    # 0x42	string
+                    try:
+                        attr_val = attribute_data.decode()
+                    except UnicodeDecodeError:
+                        attr_val = attribute_data
 
                 self.set_device_property(device_addr, endpoint,
                                          cluster_id.decode()+'_'+attribute_id.decode()+'_raw', attribute_data)
