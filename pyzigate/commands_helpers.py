@@ -46,11 +46,3 @@ class Mixin:
         for i in range(attributes):
             cmd += '{:04x}'.format(int(first_attribute_id, 16) + i)
         self.send_data('0100', cmd)
-
-    def permit_join(self):
-        """
-        permit join for 30 secs (1E)
-
-        :type self: Zigate
-        """
-        self.send_data("0049", "FFFC1E00")

@@ -8,15 +8,15 @@ from pyzigate.zgt_parameters import ZGT_LAST_SEEN
 from .features import zigate_feature, commons_feature
 
 
-FEATURES = [zigate_feature.ZigateFeature(),
-            commons_feature.CommonsFeature()
+FEATURES = [zigate_feature.Feature(),
+            commons_feature.Feature()
             ]
 
 ZGT_LOG = logging.getLogger('zigate')
 
 
-class ZiGate(zigate_feature.ZigateCommandsMixin,
-             commons_feature.CommonsCommandsMixin):
+class ZiGate(zigate_feature.CommandsMixin,
+             commons_feature.CommandsMixin):
 
     def __init__(self):
         self._buffer = b''

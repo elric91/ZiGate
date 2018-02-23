@@ -36,28 +36,9 @@ class Mixin:
         attribute_id = msg['attribute_id']
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
-        self.set_device_property(device_addr, endpoint, ZGT_LAST_SEEN, strftime('%Y-%m-%d %H:%M:%S'))
 
-        if msg['sequence'] == b'00':
-            ZGT_LOG.debug('  - Sensor type announce (Start after pairing 1)')
-        elif msg['sequence'] == b'01':
-            ZGT_LOG.debug('  - Something announce (Start after pairing 2)')
-
-        # Device type
-        if cluster_id == b'0000':
-            if attribute_id == b'0005':
-                self.set_device_property(device_addr, endpoint, 'type', attribute_data.decode())
-                ZGT_LOG.info(' * type : {}'.format(attribute_data))
-            ## proprietary Xiaomi info including battery
-            if attribute_id == b'ff01' and attribute_data != b'':
-                struct = OrderedDict([('start', 16), ('battery', 16), ('end', 'rawend')])
-                raw_info = unhexlify(self.decode_struct(struct, attribute_data)['battery'])
-                battery_info = int(hexlify(raw_info[::-1]), 16)/1000
-                self.set_device_property(device_addr, endpoint, 'battery', battery_info)
-                ZGT_LOG.info('  * Battery info')
-                ZGT_LOG.info('  * Value : {} V'.format(battery_info))
         # Button status
-        elif cluster_id == b'0006':
+        if cluster_id == b'0006':
             ZGT_LOG.info('  * General: On/Off')
             if attribute_id == b'0000':
                 if hexlify(attribute_data) == b'00':
@@ -122,7 +103,6 @@ class Mixin:
         # Temperature
         elif cluster_id == b'0402':
             temperature = int.from_bytes(attribute_data, 'big', signed=True) / 100
-            #temperature = int(hexlify(attribute_data), 16) / 100
             self.set_device_property(device_addr, endpoint, ZGT_TEMPERATURE, temperature)
             ZGT_LOG.info('  * Measurement: Temperature'),
             ZGT_LOG.info('  * Value: {} °C'.format(temperature))
@@ -150,11 +130,3 @@ class Mixin:
             if hexlify(attribute_data) == b'01':
                 self.set_device_property(device_addr, endpoint, ZGT_EVENT, ZGT_EVENT_PRESENCE)
                 ZGT_LOG.debug('   * Presence detection')
-
-        ZGT_LOG.info('  FROM ADDRESS      : {}'.format(msg['short_addr']))
-        ZGT_LOG.debug('  - Source EndPoint : {}'.format(msg['endpoint']))
-        ZGT_LOG.debug('  - Cluster ID      : {}'.format(msg['cluster_id']))
-        ZGT_LOG.debug('  - Attribute ID    : {}'.format(msg['attribute_id']))
-        ZGT_LOG.debug('  - Attribute type  : {}'.format(msg['attribute_type']))
-        ZGT_LOG.debug('  - Attribute size  : {}'.format(msg['attribute_size']))
-        ZGT_LOG.debug('  - Attribute data  : {}'.format(hexlify(msg['attribute_data'])))
