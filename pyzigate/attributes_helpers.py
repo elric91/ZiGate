@@ -36,9 +36,7 @@ class Mixin:
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
 
-        if cluster_id == b'000c':  # Unknown cluster id
-            ZGT_LOG.info('  * Rotation horizontal')
-        elif cluster_id == b'0012':  # Unknown cluster id
+        if cluster_id == b'0012':  # Unknown cluster id
             if attribute_id == b'0055':
                 if hexlify(attribute_data) == b'0000':
                     ZGT_LOG.info('  * Shaking')
