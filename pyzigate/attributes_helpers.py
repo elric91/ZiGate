@@ -36,17 +36,8 @@ class Mixin:
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
 
-        if cluster_id == b'0012':  # Unknown cluster id
-            if attribute_id == b'0055':
-                if hexlify(attribute_data) == b'0000':
-                    ZGT_LOG.info('  * Shaking')
-                elif hexlify(attribute_data) == b'0055':
-                    ZGT_LOG.info('  * Rotating vertical')
-                    ZGT_LOG.info('  * Rotated: {}°'. format(int(hexlify(attribute_data), 16)))
-                elif hexlify(attribute_data) == b'0103':
-                    ZGT_LOG.info('  * Sliding')
         # Illuminance Measurement
-        elif cluster_id == b'0400':
+        if cluster_id == b'0400':
             # MeasuredValue
             if attribute_id == b'0000':
                 illuminance = int.from_bytes(attribute_data, 'big', signed=True)
