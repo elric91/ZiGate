@@ -5,12 +5,13 @@ from time import strftime
 from collections import OrderedDict
 
 from pyzigate.zgt_parameters import ZGT_LAST_SEEN
-from .features import zigate_feature, commons_feature, attributes_feature
+from .features import zigate_feature, commons_feature, attributes_feature, onoff_feature
 
 
 FEATURES = [zigate_feature.Feature(),
             commons_feature.Feature(),
-            attributes_feature.Feature()
+            attributes_feature.Feature(),
+            onoff_feature.Feature()
             ]
 
 ZGT_LOG = logging.getLogger('zigate')
@@ -18,7 +19,8 @@ ZGT_LOG = logging.getLogger('zigate')
 
 class ZiGate(zigate_feature.CommandsMixin,
              commons_feature.CommandsMixin,
-             attributes_feature.CommandsMixin):
+             attributes_feature.CommandsMixin,
+             onoff_feature.CommandsMixin):
 
     def __init__(self):
         self._buffer = b''

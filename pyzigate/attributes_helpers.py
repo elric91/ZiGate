@@ -1,8 +1,7 @@
 #! /usr/bin/python3
 import logging
-from binascii import hexlify, unhexlify
+from binascii import hexlify
 from collections import OrderedDict
-from time import strftime
 from .zgt_parameters import *
 
 ZGT_LOG = logging.getLogger('zigate')
@@ -37,23 +36,7 @@ class Mixin:
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
 
-        # Button status
-        if cluster_id == b'0006':
-            ZGT_LOG.info('  * General: On/Off')
-            if attribute_id == b'0000':
-                if hexlify(attribute_data) == b'00':
-                    self.set_device_property(device_addr, endpoint, ZGT_STATE, ZGT_STATE_ON)
-                    ZGT_LOG.info('  * Closed/Taken off/Press')
-                else:
-                    self.set_device_property(device_addr, endpoint, ZGT_STATE, ZGT_STATE_OFF)
-                    ZGT_LOG.info('  * Open/Release button')
-            elif attribute_id == b'8000':
-                clicks = int(hexlify(attribute_data), 16)
-                self.set_device_property(device_addr, endpoint, ZGT_STATE, ZGT_STATE_MULTI.format(clicks))
-                ZGT_LOG.info('  * Multi click')
-                ZGT_LOG.info('  * Pressed: {} times'.format(clicks))
-        # Movement
-        elif cluster_id == b'000c':  # Unknown cluster id
+        if cluster_id == b'000c':  # Unknown cluster id
             ZGT_LOG.info('  * Rotation horizontal')
         elif cluster_id == b'0012':  # Unknown cluster id
             if attribute_id == b'0055':
