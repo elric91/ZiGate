@@ -36,14 +36,8 @@ class Mixin:
         attribute_size = msg['attribute_size']
         attribute_data = msg['attribute_data']
 
-        # Humidity
-        if cluster_id == b'0405':
-            humidity = int(hexlify(attribute_data), 16) / 100
-            self.set_device_property(device_addr, endpoint, ZGT_HUMIDITY, humidity)
-            ZGT_LOG.info('  * Measurement: Humidity')
-            ZGT_LOG.info('  * Value: {} %'.format(humidity))
         # Presence Detection
-        elif cluster_id == b'0406':
+        if cluster_id == b'0406':
             # Only sent when movement is detected
             if hexlify(attribute_data) == b'01':
                 self.set_device_property(device_addr, endpoint, ZGT_EVENT, ZGT_EVENT_PRESENCE)
