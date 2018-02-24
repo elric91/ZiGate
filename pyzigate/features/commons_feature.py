@@ -40,13 +40,14 @@ class Feature(AbstractFeature):
 
         # Device list
         if msg_type == b'8015':
-            ZGT_LOG.debug('RESPONSE : Version List')
+            ZGT_LOG.debug('RESPONSE : Device List')
 
             while True:
                 struct = OrderedDict([('ID', 8), ('addr', 16), ('IEEE', 64), ('power_source', 'int8'),
                                       ('link_quality', 'int8'), ('next', 'rawend')])
                 msg = zigate.decode_struct(struct, msg_data)
                 zigate.set_external_command(ZGT_CMD_LIST_DEVICES, **msg)
+                ZGT_LOG.debug(' -------------------------')
                 ZGT_LOG.debug('  * deviceID     : {}'.format(msg['ID']))
                 ZGT_LOG.debug('  - addr         : {}'.format(msg['addr']))
                 ZGT_LOG.debug('  - IEEE         : {}'.format(msg['IEEE']))
@@ -161,10 +162,24 @@ class CommandsMixin:
         """
         self.send_data("0014")
 
-    def auth_devices_list(self):
+    def list_devices(self):
         """
         Get auth devices list
 
         :type self: Zigate
         """
         self.send_data("0015")
+
+    def identify(self, device_address, duration=1, device_endpoint='01'):
+        """
+        Identification query
+
+        :type self: Zigates
+        :param str device_address: length 4
+        :param duration: int in seconds
+        :param str device_endpoint: length 2, default to '01'
+        """
+        cmd = self.address_mode + device_address + self.src_endpoint + device_endpoint
+        if duration > 0:
+            cmd += '{:04x}'.format(duration)
+        self.send_data('0071' if duration <= 0 else '0070', cmd)
