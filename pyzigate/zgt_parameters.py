@@ -13,6 +13,9 @@ ZGT_STATE = 'state'
 ZGT_STATE_ON = 'on-press'
 ZGT_STATE_MULTI = 'multi_{}'
 ZGT_STATE_OFF = 'off-release'
+ZGT_LEVEL = 'level'
+ZGT_LEVEL_PERCENT = 'level-percent'
+ZGT_LEVEL_MAX = 'level-max'
 
 # commands for external use
 ZGT_CMD_NEW_DEVICE = 'new device'
