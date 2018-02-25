@@ -144,7 +144,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         """send data through ZiGate"""
         byte_cmd = bytes.fromhex(cmd)
         byte_data = bytes.fromhex(data)
-        length = int(len(data)/2)
+        length = len(byte_data)
         byte_length = length.to_bytes(2, 'big')
 
         # --- non encoded version ---
