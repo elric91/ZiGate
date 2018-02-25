@@ -1,6 +1,9 @@
 #! /usr/bin/python3
 
 # states & properties
+ZGT_TYPE = 'type'
+ZGT_NAME = 'name'
+ZGT_SERIAL = 'serial'
 ZGT_TEMPERATURE = 'temperature'
 ZGT_PRESSURE = 'pressure'
 ZGT_DETAILED_PRESSURE = 'detailed pressure'

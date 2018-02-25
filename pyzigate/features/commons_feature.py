@@ -124,8 +124,18 @@ class Feature(AbstractFeature):
 
     def interprete_attribute(self, zigate, device_addr, endpoint, attr_id, attr_type, size, data):
         if attr_id == b'0005':
-            zigate.set_device_property(device_addr, endpoint, 'type', data.decode())
-            ZGT_LOG.info(' * type : {}'.format(data))
+            zigate.set_device_property(device_addr, endpoint, ZGT_TYPE, data.decode())
+            ZGT_LOG.info(' * Type : {}'.format(data))
+            return True
+
+        if attr_id == b'0006':
+            zigate.set_device_property(device_addr, endpoint, ZGT_SERIAL, data.decode())
+            ZGT_LOG.info(' * Serial Nb. : {}'.format(data))
+            return True
+
+        if attr_id == b'0011':
+            zigate.set_device_property(device_addr, endpoint, ZGT_NAME, data.decode().trim())
+            ZGT_LOG.info(' * Name : {}'.format(data))
             return True
 
         ## proprietary Xiaomi info including battery
