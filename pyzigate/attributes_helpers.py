@@ -76,9 +76,9 @@ class Mixin:
         elif cluster_id == b'000c':  # Unknown cluster id
             if attribute_id == b'ff05':
                 if hexlify(attribute_data) == b'01f4':
-                    ZGT_LOG.info('  * Rotation horizontal')
+                    ZGT_LOG.info('  * Horizontal Rotation Announce')
             elif attribute_id == b'0055':
-                ZGT_LOG.info('  * Rotated: %s°' % (unpack('!f', attribute_data)[0]))
+                ZGT_LOG.info('  * Horizontal Rotation Value: %s°' % (unpack('!f', attribute_data)[0]))
         elif cluster_id == b'0012':  # Unknown cluster id
             if attribute_id == b'0055':
                 if hexlify(attribute_data) == b'0000':
@@ -86,26 +86,20 @@ class Mixin:
                 elif hexlify(attribute_data) in [b'0100', b'0101', b'0102', b'0103', b'0104', b'0105']:
                     ZGT_LOG.info('  * Sliding')
                 else:
-                    ZGT_LOG.info('  * Rotating vertical')
-                    if hexlify(attribute_data) in [b'0050', b'0042',
-                                                   b'0044', b'0060',
-                                                   b'0045', b'0068',
-                                                   b'0041', b'0048',
-
-                                                   b'0063', b'005c',
-                                                   b'0059', b'004b',
-                                                   b'005d', b'006b',
-                                                   b'005a', b'0053',
-
-                                                   b'004a', b'0051',
-                                                   b'0054', b'0062',
-                                                   b'0069', b'004d',
-                                                   b'006c', b'0065',]:
-                        ZGT_LOG.info('  * Rotated: 90°')
-                    if hexlify(attribute_data) in [b'0080', b'0083',
-                                                   b'0081', b'0084',
-                                                   b'0085', b'0082',]:
-                        ZGT_LOG.info('  * Rotated: 180°')
+                    # binary format
+                    # aa : 01 = 90° 10 = 180°
+                    # bbb : face (from) number (if 180° always 000)
+                    # ccc : face (to) number
+                    rotation_info = [(attribute_data[1] >> i) & 1 for i in range(7, -1, -1)]
+                    rotation_info = ''.join([str(x) for x in rotation_info])
+                    rotation_type = int(rotation_info[0:2],2)
+                    rotation_from = int(rotation_info[2:5],2)
+                    rotation_to = int(rotation_info[5:8],2)
+                    if rotation_type == 2:
+                        ZGT_LOG.info('  * 180° Rotation to face {}'.format(rotation_to))
+                    else:
+                        ZGT_LOG.info('  * 90° Rotation from face {} to face {}'.format(rotation_from, rotation_to))
+                        
         # Illuminance Measurement
         elif cluster_id == b'0400':
             # MeasuredValue
