@@ -75,17 +75,16 @@ class Mixin:
         # Movement
         elif cluster_id == b'000c':  # Unknown cluster id
             if attribute_id == b'ff05':
-                if hexlify(attribute_data) == b'01f4':
-                    ZGT_LOG.info('  * Horizontal Rotation Announce')
+                ZGT_LOG.info('  * Horizontal Rotation Announce with value {}'.format(hexlify(attribute_data)))
             elif attribute_id == b'0055':
                 ZGT_LOG.info('  * Horizontal Rotation Value: %s°' % (unpack('!f', attribute_data)[0]))
         elif cluster_id == b'0012':  # Unknown cluster id
             if attribute_id == b'0055':
                 if hexlify(attribute_data) == b'0000':
                     ZGT_LOG.info('  * Shaking')
-                elif hexlify(attribute_data) in [b'0100', b'0101', b'0102', b'0103', b'0104', b'0105']:
-                    ZGT_LOG.info('  * Sliding')
-                else:
+                elif attribute_data[0] == 1: # b'01xx'
+                    ZGT_LOG.info('  * Sliding on face {}'.format(attribute_data[1]))
+                elif attribute_data[0] == 0: # b'00xx' with xx != 00
                     # binary format
                     # aa : 01 = 90° 10 = 180°
                     # bbb : face (from) number (if 180° always 000)
