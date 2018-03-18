@@ -4,8 +4,9 @@ from binascii import hexlify
 from time import strftime
 from collections import OrderedDict
 from . import commands_helpers, attributes_helpers
-from .zgt_parameters import *
+from .parameters import *
 from .conversions import zgt_encode, zgt_decode, zgt_checksum, zgt_decode_struct
+from .responses import RESPONSES
 
 
 CLUSTERS = {b'0000': 'General: Basic',
@@ -82,7 +83,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             startpos = self._buffer.find(b'\x01')
             # stripping starting 0x01 & ending 0x03
             data_to_decode = zgt_decode(self._buffer[startpos + 1:endpos])
-            self.decode_data(data_to_decode)
+            self.interpret_response(data_to_decode)
             ZGT_LOG.debug('  # encoded : {}'.format(hexlify(self._buffer[startpos:endpos + 1])))
             ZGT_LOG.debug('  # decoded : 01{}03'.format(
                 ' '.join([format(x, '02x') for x in data_to_decode]).upper()))
@@ -128,12 +129,12 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
 
         self.send_to_transport(encoded_output)
 
-    def decode_data(self, data):
+    def interpret_response(self, data):
         """Interpret responses attributes"""
-        msg_data = data[5:]
         msg_type = int.from_bytes(data[0:2], byteorder='big', signed=False)
         msg_length = int.from_bytes(data[2:4], byteorder='big', signed=False) 
         msg_crc = int.from_bytes(data[4:5], byteorder='big', signed=False)
+        msg_data = data[5:]
         msg_rssi = int.from_bytes(data[-1:], byteorder='big', signed=False)
 	
         if msg_length != len(msg_data) :
@@ -149,13 +150,22 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         ZGT_LOG.debug('--------------------------------------')
 
         # Device Announce
-        if msg_type == 0x004d:
+        if RESPONSES.get(msg_type):
+            resp = RESPONSES[msg_type](data)
+
+            commands = resp.get_external_commands()
+            while commands:
+                cmd, params = commands.popitem(last=False)
+                self.set_external_command(cmd, **params)
+
+            resp.show_log()
+
+        elif msg_type == 0x004d:
             struct = OrderedDict([('short_addr', 16), ('mac_addr', 64),
                                   ('mac_capability', 'rawend')])
             msg = zgt_decode_struct(struct, msg_data)
 
             self.set_external_command(ZGT_CMD_NEW_DEVICE, addr=msg['short_addr'].decode())
-            self.set_device_property(msg['short_addr'], None, 'MAC', msg['mac_addr'].decode())
 
             ZGT_LOG.debug('RESPONSE 004d : Device Announce')
             ZGT_LOG.debug('  * From address   : {}'.format(msg['short_addr']))
@@ -360,7 +370,6 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                                   ('endpoint_list', 8)])
             msg = zgt_decode_struct(struct, msg_data)
             endpoints = [elt.decode() for elt in msg['endpoint_list']]
-            # self.set_device_property(msg['addr'], None, 'endpoints', endpoints)
             self.set_external_command(ZGT_CMD_LIST_ENDPOINTS, addr=msg['addr'].decode(), endpoints=endpoints)
 
             ZGT_LOG.debug('RESPONSE 8045 : Active Endpoints List')
@@ -474,5 +483,5 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             ZGT_LOG.debug('  - MsgLength       : {}'.format(msg_type))
             ZGT_LOG.debug('  - ChkSum          : {}'.format(msg_crc))
             ZGT_LOG.debug('  - Data            : {}'.format(hexlify(msg_data)))
-            ZGT_LOG.debug('  - RSSI            : {}'.format(msg_rssi))
+        ZGT_LOG.debug('  - RSSI            : {}'.format(msg_rssi))
 
