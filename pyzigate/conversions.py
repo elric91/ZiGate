@@ -52,10 +52,21 @@ def zgt_checksum(cmd, length, data):
 
     return tmp
 
-def zgt_decode_struct(struct, msg):
+def zgt_to_int(data):
+    return int.from_bytes(data, byteorder='big', signed=False)
+
+
+def zgt_decode_struct(struct, msg, elt_id=0):
     output = OrderedDict()
-    while struct:
-        key, elt_type = struct.popitem(last=False)
+    iter_struct = struct.copy()
+    # recursive if the last element says so
+    is_recursive = list(struct.items())[-1][1] == 'recursive'
+        
+    while iter_struct:
+        key, elt_type = iter_struct.popitem(last=False)
+        if is_recursive: # if recursive, index the keys
+            key = '{1}[{0:02x}]'.format(elt_id, key)
+
         # uint_8, 16, 32, 64 ... or predefined byte length
         if type(elt_type) == int:
             length = int(elt_type / 8)
@@ -80,7 +91,7 @@ def zgt_decode_struct(struct, msg):
             output[key] = length
             msg = msg[index:]
             # let's get the next element
-            key, elt_type = struct.popitem(last=False)
+            key, elt_type = iter_struct.popitem(last=False)
             if elt_type == 'raw':
                 output[key] = msg[:length]
                 msg = msg[length:]
@@ -95,7 +106,7 @@ def zgt_decode_struct(struct, msg):
             msg = msg[1:]
             # let's get the next element
             # (list of elements referenced by the count)
-            key, elt_type = struct.popitem(last=False)
+            key, elt_type = iter_struct.popitem(last=False)
             output[key] = []
             length = int(elt_type / 8)
             for i in range(count):
@@ -107,6 +118,9 @@ def zgt_decode_struct(struct, msg):
         # remaining of the message as raw data
         elif elt_type == 'rawend':
             output[key] = msg
+        elif elt_type == 'recursive' and len(msg) > 2:
+            next_output = zgt_decode_struct(struct, msg, elt_id + 1)
+            output.update(next_output)
 
     return output
 
