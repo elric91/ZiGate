@@ -333,6 +333,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
 
                 else:
                     ZGT_LOG.error('{} dead ? '.format(msg['ID']))
+                    self.set_device_property(msg['addr'], device[4:6].encode(), "Link_quality", '0')
 
                 if len(msg['next']) < 13:
                     break
