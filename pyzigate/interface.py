@@ -325,7 +325,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('  - Link Quality : {}'.format(msg['link_quality']))
                 if int(msg['link_quality']) != 255:
                     # Found enpoint
-                    for device in self._known_devices:
+                    for device in self._known_devices_full:
                         # If address match
                         if str(device[:4]) == msg['addr'].decode('UTF-8'):
                             # Update the device with Link Quality value
