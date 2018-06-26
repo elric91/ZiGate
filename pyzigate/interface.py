@@ -324,13 +324,13 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('  - Power Source : {}'.format(msg['power_source']))
                 ZGT_LOG.debug('  - Link Quality : {}'.format(msg['link_quality']))
                 if int(msg['link_quality']) != 255:
-                    #Found enpoint
+                    # Found enpoint
                     for device in self._known_devices:
-                      #If address match
-                      if str(device[:4])==msg['addr'].decode('UTF-8'):
-                        #Update the device with Link Quality value
-                        self.set_device_property(msg['addr'], device[4:6].encode() , "Link_quality", '{}'.format(msg['link_quality']))
-                    
+                        # If address match
+                        if str(device[:4]) == msg['addr'].decode('UTF-8'):
+                            # Update the device with Link Quality value
+                            self.set_device_property(msg['addr'], device[4:6].encode(), "Link_quality", '{}'.format(msg['link_quality']))
+
                 else:
                     ZGT_LOG.error('{} dead ? '.format(msg['ID']))
 
@@ -338,7 +338,6 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                     break
                 else:
                     msg_data = msg['next']
-
         # Node Descriptor
         elif msg_type == b'8042':
             struct = OrderedDict([('sequence', 8), ('status', 8), ('addr', 16),
