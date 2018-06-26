@@ -329,7 +329,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                       #If address match
                       if str(device[:4])==msg['addr'].decode('UTF-8'):
                         #Update the device with Link Quality value
-                        self.set_device_property(msg['addr'], device[4:6].encode() , "Link quality", '{}'.format(msg['link_quality']))
+                        self.set_device_property(msg['addr'], device[4:6].encode() , "Link_quality", '{}'.format(msg['link_quality']))
                     
                 else:
                     ZGT_LOG.error('{} dead ? '.format(msg['ID']))
