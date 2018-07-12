@@ -323,11 +323,24 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('  - IEEE         : {}'.format(msg['IEEE']))
                 ZGT_LOG.debug('  - Power Source : {}'.format(msg['power_source']))
                 ZGT_LOG.debug('  - Link Quality : {}'.format(msg['link_quality']))
+                if int(msg['link_quality']) != 255:
+                    # Found enpoint
+                    for device in self._known_devices_full:
+                        # If address match
+                        if str(device[:4]) == msg['addr'].decode('UTF-8'):
+                            # Update the device with Link Quality value
+                            self.set_device_property(msg['addr'], device[4:6].encode(), "Link_quality", '{}'.format(msg['link_quality']))
+                            self.set_device_property(msg['addr'], device[4:6].encode(), ZGT_LAST_SEEN, strftime('%Y-%m-%d %H:%M:%S'))
+
+                else:
+                    ZGT_LOG.error('{} dead ? '.format(msg['ID']))
+                    self.set_device_property(msg['addr'], device[4:6].encode(), "Link_quality", '0')
+                    self.set_device_property(msg['addr'], device[4:6].encode(), ZGT_LAST_SEEN, strftime('%Y-%m-%d %H:%M:%S'))
+
                 if len(msg['next']) < 13:
                     break
                 else:
                     msg_data = msg['next']
-
         # Node Descriptor
         elif msg_type == b'8042':
             struct = OrderedDict([('sequence', 8), ('status', 8), ('addr', 16),
