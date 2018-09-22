@@ -149,7 +149,6 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         # Do different things based on MsgType
         ZGT_LOG.debug('--------------------------------------')
 
-        # Device Announce
         if RESPONSES.get(msg_type):
             resp = RESPONSES[msg_type](data)
 
@@ -160,6 +159,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
 
             resp.show_log()
 
+        # Device Announce
         elif msg_type == 0x004d:
             struct = OrderedDict([('short_addr', 16), ('mac_addr', 64),
                                   ('mac_capability', 'rawend')])

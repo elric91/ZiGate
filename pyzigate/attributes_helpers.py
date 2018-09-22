@@ -4,7 +4,8 @@ from struct import unpack
 from binascii import hexlify, unhexlify
 from collections import OrderedDict
 from time import strftime
-from .zgt_parameters import *
+from .parameters import *
+from .conversions import zgt_decode_struct
 
 ZGT_LOG = logging.getLogger('zigate')
 
@@ -30,7 +31,7 @@ class Mixin:
                               ('attribute_size', 'len16'),
                               ('attribute_data', 'raw'),
                               ('end', 'rawend')])
-        msg = self.decode_struct(struct, msg_data)
+        msg = zgt_decode_struct(struct, msg_data)
         device_addr = msg['short_addr']
         endpoint = msg['endpoint']
         cluster_id = msg['cluster_id']
@@ -52,7 +53,7 @@ class Mixin:
             ## proprietary Xiaomi info including battery
             if attribute_id == b'ff01' and attribute_data != b'':
                 struct = OrderedDict([('start', 16), ('battery', 16), ('end', 'rawend')])
-                raw_info = unhexlify(self.decode_struct(struct, attribute_data)['battery'])
+                raw_info = unhexlify(zgt_decode_struct(struct, attribute_data)['battery'])
                 battery_info = int(hexlify(raw_info[::-1]), 16)/1000
                 self.set_device_property(device_addr, endpoint, 'battery', battery_info)
                 ZGT_LOG.info('  * Battery info')

@@ -1,3 +1,4 @@
+
 class Mixin:
     """
     SubClass for the ZiGate class. Contains helper methods for command sending.

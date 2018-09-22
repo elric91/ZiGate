@@ -65,4 +65,4 @@ if __name__ == "__main__":
     t = threading.Thread(target=start_loop, args=(loop,))
     t.start()
 
-    zigate.send_data('0010')
+    zigate.send_data('0015')

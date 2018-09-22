@@ -52,7 +52,7 @@ def zgt_checksum(cmd, length, data):
 
     return tmp
 
-def zgt_to_int(data):
+def zgt2int(data):
     return int.from_bytes(data, byteorder='big', signed=False)
 
 

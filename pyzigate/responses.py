@@ -3,7 +3,8 @@ import logging
 from .parameters import * 
 from collections import OrderedDict
 from binascii import hexlify
-from .conversions import zgt_decode_struct, zgt_to_int
+from .conversions import zgt_decode_struct, zgt2int
+from .clusters import CLUSTERS
 
 ZGT_LOG = logging.getLogger('zigate')
 RESPONSES = {}
@@ -19,11 +20,11 @@ class Response(object):
     struct = OrderedDict()
     
     def __init__(self, data):
-        self.msg_type = zgt_to_int(data[0:2])
-        self.msg_length = zgt_to_int(data[2:4])
-        self.msg_crc = zgt_to_int(data[4:5])
+        self.msg_type = zgt2int(data[0:2])
+        self.msg_length = zgt2int(data[2:4])
+        self.msg_crc = zgt2int(data[4:5])
         self.msg_data = data[5:]
-        self.msg_rssi = zgt_to_int(data[-1:])
+        self.msg_rssi = zgt2int(data[-1:])
         
         self.msg = zgt_decode_struct(self.struct, self.msg_data)
         self.external_commands = OrderedDict()
@@ -56,10 +57,6 @@ class Response_8000(Response):
     struct = OrderedDict([('status', 'int'), ('sequence', 8),
                           ('packet_type', 16), ('info', 'rawend')])
 
-    def __init__(self, data):
-        Response.__init__(self, data)
-
-
     def show_log(self):
         ZGT_LOG.debug('RESPONSE {:04x} : {}'.format(self.id, self.descr))
         status_codes = {0: 'Success', 1: 'Invalid parameters',
@@ -71,8 +68,8 @@ class Response_8000(Response):
         ZGT_LOG.debug('  * Status              : {}'.format(status_text))
         ZGT_LOG.debug('  - Sequence            : {}'.format(self.msg['sequence']))
         ZGT_LOG.debug('  - Response to command : {}'.format(self.msg['packet_type']))
-        if zgt_to_int(self.msg['info']) != 0x00:
-            ZGT_LOG.debug('  - Additional msg: ', zgt_to_int(self.msg['info']))
+        if zgt2int(self.msg['info']) != 0x00:
+            ZGT_LOG.debug('  - Additional msg: ', zgt2int(self.msg['info']))
 
 
 @register_response
@@ -82,7 +79,10 @@ class Response_8015(Response):
     struct = OrderedDict([('ID', 8), ('addr', 16), ('IEEE', 64), 
                           ('power_source', 'int8'), ('link_quality', 'int8'),
                           ('next', 'recursive')])
-      
+
+    def add_external_command(self):
+        self.external_commands[ZGT_CMD_LIST_DEVICES] = msg
+
 
 @register_response
 class Response_8045(Response):
@@ -106,4 +106,37 @@ class Response_8045(Response):
         for i, ep in enumerate(msg['endpoint_list']):
             ZGT_LOG.debug('    * EndPoint %s : %s' % (i, ep))
 
-     
+
+@register_response
+class Response_8100(Response):
+    id = 0x8100
+    descr = 'Attribute Report / Response'
+    struct = OrderedDict([('sequence', 8),
+                          ('short_addr', 16),
+                          ('endpoint', 8),
+                          ('cluster_id', 16),
+                          ('attribute_id', 16),
+                          ('attribute_status', 8),
+                          ('attribute_type', 8),
+                          ('attribute_size', 'len16'),
+                          ('attribute_data', 'raw'),
+                          ('end', 'rawend')])
+    
+    def __init__(self, data):
+        Response.__init__(self, data)
+        #if CLUSTERS.get(self.msg['cluster_id']:
+        #    cluster = CLUSTERS[self.msg['cluster_id']]
+             
+        
+
+
+        self.sequence = self.msg['sequence']
+        device_addr = msg['short_addr']
+        endpoint = msg['endpoint']
+        cluster_id = msg['cluster_id']
+        attribute_id = msg['attribute_id']
+        attribute_size = msg['attribute_size']
+        attribute_data = msg['attribute_data']
+
+
+

@@ -31,4 +31,4 @@ if __name__ == "__main__":
     # Thread base connection
     zigate = ZiGate()
     connection = ThreadedConnection(zigate)
-    zigate.send_data('0010')
+    zigate.send_data('0015')
