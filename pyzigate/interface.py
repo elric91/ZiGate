@@ -311,9 +311,13 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         
         # Device list
         elif msg_type == b'8015':
-            ZGT_LOG.debug('RESPONSE : Version List')
+            ZGT_LOG.debug('RESPONSE : Device List')
 
             while True:
+                # If empty device list is returned escape
+                if msg_data == b'\x00':
+                    break
+
                 struct = OrderedDict([('ID', 8), ('addr', 16), ('IEEE', 64), ('power_source', 'int8'),
                                       ('link_quality', 'int8'), ('next', 'rawend')])
                 msg = self.decode_struct(struct, msg_data)
