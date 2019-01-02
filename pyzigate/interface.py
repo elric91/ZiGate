@@ -4,7 +4,9 @@ from binascii import hexlify
 from time import strftime
 from collections import OrderedDict
 from . import commands_helpers, attributes_helpers
-from .zgt_parameters import *
+from .parameters import *
+from .conversions import zgt_encode, zgt_decode, zgt_checksum, zgt_decode_struct
+from .responses import RESPONSES
 
 
 CLUSTERS = {b'0000': 'General: Basic',
@@ -47,55 +49,6 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         self._buffer = b''
         self._devices_info = {}
 
-    @staticmethod
-    def zigate_encode(data):
-        """encode all characters < 0x02 to avoid """
-        encoded = []
-        for x in data:
-            if x < 0x10:
-                encoded.append(0x02)
-                encoded.append(x ^ 0x10)
-            else:
-                encoded.append(x)
-
-        return encoded
-
-    @staticmethod
-    def zigate_decode(data):
-        """reverse of zigate_encode to get back the real message"""
-        encoded = False
-        decoded_data = b''
-
-        def bxor_join(b1, b2):  # use xor for bytes
-            parts = []
-            for b1, b2 in zip(b1, b2):
-                parts.append(bytes([b1 ^ b2]))
-            return b''.join(parts)
-
-        for x in data:
-            if bytes([x]) == b'\x02':
-                encoded = True
-            elif encoded is True:
-                encoded = False
-                decoded_data += bxor_join(bytes([x]), b'\x10')
-            else:
-                decoded_data += bytes([x])
-
-        return decoded_data
-
-    @staticmethod
-    def checksum(cmd, length, data):
-        tmp = 0
-        tmp ^= cmd[0]
-        tmp ^= cmd[1]
-        tmp ^= length[0]
-        tmp ^= length[1]
-        if data:
-            for x in data:
-                tmp ^= x
-
-        return tmp
-
     # register valuable (i.e. non technical properties) for futur use
     def set_device_property(self, addr, endpoint, property_id, property_data):
         """
@@ -129,8 +82,8 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         while endpos != -1:
             startpos = self._buffer.find(b'\x01')
             # stripping starting 0x01 & ending 0x03
-            data_to_decode = self.zigate_decode(self._buffer[startpos + 1:endpos])
-            self.decode_data(data_to_decode)
+            data_to_decode = zgt_decode(self._buffer[startpos + 1:endpos])
+            self.interpret_response(data_to_decode)
             ZGT_LOG.debug('  # encoded : {}'.format(hexlify(self._buffer[startpos:endpos + 1])))
             ZGT_LOG.debug('  # decoded : 01{}03'.format(
                 ' '.join([format(x, '02x') for x in data_to_decode]).upper()))
@@ -151,18 +104,18 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         std_msg = [0x01]
         std_msg.extend(byte_cmd)
         std_msg.extend(byte_length)
-        std_msg.append(self.checksum(byte_cmd, byte_length, byte_data))
+        std_msg.append(zgt_checksum(byte_cmd, byte_length, byte_data))
         if data != "":
             std_msg.extend(byte_data)
         std_msg.append(0x03)
 
         # --- encoded version ---
         enc_msg = [0x01]
-        enc_msg.extend(self.zigate_encode(byte_cmd))
-        enc_msg.extend(self.zigate_encode(byte_length))
-        enc_msg.append(self.checksum(byte_cmd, byte_length, byte_data))
+        enc_msg.extend(zgt_encode(byte_cmd))
+        enc_msg.extend(zgt_encode(byte_length))
+        enc_msg.append(zgt_checksum(byte_cmd, byte_length, byte_data))
         if data != "":
-            enc_msg.extend(self.zigate_encode(byte_data))
+            enc_msg.extend(zgt_encode(byte_data))
         enc_msg.append(0x03)
 
         std_output = b''.join([bytes([x]) for x in std_msg])
@@ -176,79 +129,20 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
 
         self.send_to_transport(encoded_output)
 
-    @staticmethod
-    def decode_struct(struct, msg):
-        output = OrderedDict()
-        while struct:
-            key, elt_type = struct.popitem(last=False)
-            # uint_8, 16, 32, 64 ... or predefined byte length
-            if type(elt_type) == int:
-                length = int(elt_type / 8)
-                output[key] = hexlify(msg[:length])
-                msg = msg[length:]
-            # int (1 ou 2 bytes)
-            elif elt_type in ('int', 'int8', 'int16'):
-                if elt_type == 'int16':
-                    index = 2
-                else:
-                    index = 1
-                output[key] = int(hexlify(msg[:index]), 16)
-                msg = msg[index:]
-            # element gives length of next element in message
-            # (which could be raw)
-            elif elt_type in ('len8', 'len16'):
-                if elt_type == 'len16':
-                    index = 2
-                else:
-                    index = 1
-                length = int(hexlify(msg[0:index]), 16)
-                output[key] = length
-                msg = msg[index:]
-                # let's get the next element
-                key, elt_type = struct.popitem(last=False)
-                if elt_type == 'raw':
-                    output[key] = msg[:length]
-                    msg = msg[length:]
-                else:
-                    output[key] = hexlify(msg[:length])
-                    msg = msg[length:]
-            # element gives number of next elements
-            # (which can be of a defined length)
-            elif elt_type == 'count':
-                count = int(hexlify(msg[:1]), 16)
-                output[key] = count
-                msg = msg[1:]
-                # let's get the next element
-                # (list of elements referenced by the count)
-                key, elt_type = struct.popitem(last=False)
-                output[key] = []
-                length = int(elt_type / 8)
-                for i in range(count):
-                    output[key].append(hexlify(msg[:length]))
-                    msg = msg[length:]
-            # remaining of the message
-            elif elt_type == 'end':
-                output[key] = hexlify(msg)
-            # remaining of the message as raw data
-            elif elt_type == 'rawend':
-                output[key] = msg
-
-        return output
-
-    def decode_data(self, data):
+    def interpret_response(self, data):
         """Interpret responses attributes"""
-        msg_data = data[5:]
-        msg_type = hexlify(data[0:2])
-        msg_length = int.from_bytes(data[2:4], byteorder='big', signed=False) 
+        msg_type = int.from_bytes(data[0:2], byteorder='big', signed=False)
+        msg_length = int.from_bytes(data[2:4], byteorder='big', signed=False)
         msg_crc = int.from_bytes(data[4:5], byteorder='big', signed=False)
+        msg_data = data[5:]
         msg_rssi = int.from_bytes(data[-1:], byteorder='big', signed=False)
 	
-        if msg_length != len(msg_data) :
+        if msg_length != len(msg_data):
             ZGT_LOG.error('BAD LENGTH {0} != {1}'.format(msg_length,len(msg_data)))
             return
 
-        computed_crc = self.checksum(data[0:2], data[2:4], data[5:])
-        if msg_crc != computed_crc :
+        computed_crc = zgt_checksum(data[0:2], data[2:4], data[5:])
+        if msg_crc != computed_crc:
             ZGT_LOG.error('BAD CRC {0} != {1}'.format(msg_crc,computed_crc))
             return
 
@@ -256,10 +150,10 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         ZGT_LOG.debug('--------------------------------------')
 
         # Device Announce
-        if msg_type == b'004d':
+        if msg_type == 0x004d :
             struct = OrderedDict([('short_addr', 16), ('mac_addr', 64),
                                   ('mac_capability', 'rawend')])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             self.set_external_command(ZGT_CMD_NEW_DEVICE, addr=msg['short_addr'].decode())
             self.set_device_property(msg['short_addr'], None, 'MAC', msg['mac_addr'].decode())
@@ -270,10 +164,10 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             ZGT_LOG.debug('  * MAC capability : {}'.format(msg['mac_capability']))
 
         # Status
-        elif msg_type == b'8000':
+        elif msg_type == 0x8000:
             struct = OrderedDict([('status', 'int'), ('sequence', 8),
                                   ('packet_type', 16), ('info', 'rawend')])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             status_codes = {0: 'Success', 1: 'Invalid parameters',
                             2: 'Unhandled command', 3: 'Command failed',
@@ -290,27 +184,27 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('  - Additional msg: ', msg['info'])
 
         # Default Response
-        elif msg_type == b'8001':
+        elif msg_type == 0x8001:
             zgt_log_levels = ['Emergency', 'Alert', 'Critical', 'Error',
                               'Warning', 'Notice', 'Information', 'Debug']
             struct = OrderedDict([('level', 'int'), ('info', 'rawend')])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             ZGT_LOG.debug('RESPONSE 8001 : Log Message')
             ZGT_LOG.debug('  - Log Level : {}'.format(zgt_log_levels[msg['level']]))
             ZGT_LOG.debug('  - Log Info  : {}'.format(msg['info']))
 
         # Version List
-        elif msg_type == b'8010':
+        elif msg_type == 0x8010:
             struct = OrderedDict([('major', 'int16'), ('installer', 'int16')])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             ZGT_LOG.debug('RESPONSE : Version List')
             ZGT_LOG.debug('  - Major version     : {}'.format(msg['major']))
             ZGT_LOG.debug('  - Installer version : {}'.format(msg['installer']))
         
         # Device list
-        elif msg_type == b'8015':
+        elif msg_type == 0x8015:
             ZGT_LOG.debug('RESPONSE : Device List')
 
             while True:
@@ -320,7 +214,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
 
                 struct = OrderedDict([('ID', 8), ('addr', 16), ('IEEE', 64), ('power_source', 'int8'),
                                       ('link_quality', 'int8'), ('next', 'rawend')])
-                msg = self.decode_struct(struct, msg_data)
+                msg = zgt_decode_struct(struct, msg_data)
                 self.set_external_command(ZGT_CMD_LIST_DEVICES, **msg)
                 ZGT_LOG.debug('  * deviceID     : {}'.format(msg['ID']))
                 ZGT_LOG.debug('  - addr         : {}'.format(msg['addr']))
@@ -345,8 +239,9 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                     break
                 else:
                     msg_data = msg['next']
+
         # Node Descriptor
-        elif msg_type == b'8042':
+        elif msg_type == 0x8042:
             struct = OrderedDict([('sequence', 8), ('status', 8), ('addr', 16),
                                   ('manufacturer_code', 16),
                                   ('max_rx', 16), ('max_tx', 16),
@@ -354,7 +249,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                                   ('descriptor_capability', 8),
                                   ('mac_flags', 8), ('max_buffer_size', 16),
                                   ('bit_field', 16)])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             server_mask_binary = format(int(msg['server_mask'], 16), '016b')
             descriptor_capability_binary = format(int(msg['descriptor_capability'], 16), '08b')
@@ -416,7 +311,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('    - %s : %s' % (description, 'Yes' if bit_field_binary[-i] == '1' else 'No'))
 
         # Cluster List
-        elif msg_type == b'8043':
+        elif msg_type == 0x8043:
             struct = OrderedDict([('sequence', 8), ('status', 8), ('addr', 16),
                                   ('length', 8), ('endpoint', 8),
                                   ('profile', 16), ('device_id', 16),
@@ -424,7 +319,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                                   ('in_cluster_list', 16),
                                   ('out_cluster_count', 'count'),
                                   ('out_cluster_list', 16)])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             ZGT_LOG.debug('RESPONSE 8043 : Cluster List')
             ZGT_LOG.debug('  - Sequence          : {}'.format(msg['sequence']))
@@ -442,10 +337,10 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('    - Cluster %s : %s (%s)' % (i, cluster_id, CLUSTERS.get(cluster_id, 'unknown')))
 
         # Power Descriptor
-        elif msg_type == b'8044':
+        elif msg_type == 0x8044:
             struct = OrderedDict([('sequence', 8), ('status', 8),
                                  ('bit_field', 16), ])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             bit_field_binary = format(int(msg['bit_field'], 16), '016b')
 
@@ -478,11 +373,11 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 current_power_level.get(bit_field_binary[:4], 'Unknown')))
 
         # Endpoint List
-        elif msg_type == b'8045':
+        elif msg_type == 0x8045:
             struct = OrderedDict([('sequence', 8), ('status', 8), ('addr', 16),
                                   ('endpoint_count', 'count'),
                                   ('endpoint_list', 8)])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
             endpoints = [elt.decode() for elt in msg['endpoint_list']]
             # self.set_device_property(msg['addr'], None, 'endpoints', endpoints)
             self.set_external_command(ZGT_CMD_LIST_ENDPOINTS, addr=msg['addr'].decode(), endpoints=endpoints)
@@ -496,20 +391,20 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('    * EndPoint %s : %s' % (i, endpoint))
 
         # Leave indication
-        elif msg_type == b'8048':
+        elif msg_type == 0x8048:
             struct = OrderedDict([('extended_addr', 64), ('rejoin_status', 8)])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             ZGT_LOG.debug('RESPONSE 8048 : Leave indication')
             ZGT_LOG.debug('  - From address   : {}'.format(msg['extended_addr']))
             ZGT_LOG.debug('  - Rejoin status  : {}'.format(msg['rejoin_status']))
 
         # Default Response
-        elif msg_type == b'8101':
+        elif msg_type == 0x8101:
             struct = OrderedDict([('sequence', 8), ('endpoint', 8),
                                  ('cluster', 16), ('command_id', 8),
                                  ('status', 8)])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             ZGT_LOG.debug('RESPONSE 8101 : Default Response')
             ZGT_LOG.debug('  - Sequence       : {}'.format(msg['sequence']))
@@ -522,18 +417,18 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
         # Read attribute response, Attribute report, Write attribute response
         # Currently only support Xiaomi sensors.
         # Other brands might calc things differently
-        elif msg_type in (b'8100', b'8102', b'8110'):
-            ZGT_LOG.debug('RESPONSE %s : Attribute Report / Response' % msg_type.decode())
+        elif msg_type in (0x8100, 0x8102, 0x8110):
+            ZGT_LOG.debug('RESPONSE {:04x} : Attribute Report / Response'.format(msg_type))
             self.interpret_attributes(msg_data)
 
         # Zone status change
-        elif msg_type == b'8401':
+        elif msg_type == 0x8401:
             struct = OrderedDict([('sequence', 8), ('endpoint', 8),
                                  ('cluster', 16), ('src_address_mode', 8),
                                  ('src_address', 16), ('zone_status', 16),
                                  ('extended_status', 16), ('zone_id', 8),
                                  ('delay_count', 'count'), ('delay_list', 16)])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             zone_status_binary = format(int(msg['zone_status'], 16), '016b')
 
@@ -568,7 +463,7 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
                 ZGT_LOG.debug('    - %s : %s' % (i, value))
 
         # Route Discovery Confirmation
-        elif msg_type == b'8701':
+        elif msg_type == 0x8701:
             ZGT_LOG.debug('RESPONSE 8701: Route Discovery Confirmation')
             ZGT_LOG.debug('  - Sequence       : {}'.format(hexlify(msg_data[:1])))
             ZGT_LOG.debug('  - Status         : {}'.format(hexlify(msg_data[1:2])))
@@ -576,11 +471,11 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
             ZGT_LOG.debug('  - Message data   : {}'.format(hexlify(msg_data)))
 
         # APS Data Confirm Fail
-        elif msg_type == b'8702':
+        elif msg_type == 0x8702:
             struct = OrderedDict([('status', 8), ('src_endpoint', 8),
                                  ('dst_endpoint', 8), ('dst_address_mode', 8),
                                   ('dst_address', 64), ('sequence', 8)])
-            msg = self.decode_struct(struct, msg_data)
+            msg = zgt_decode_struct(struct, msg_data)
 
             ZGT_LOG.debug('RESPONSE 8702 : APS Data Confirm Fail')
             ZGT_LOG.debug('  - Status         : {}'.format(msg['status']))
@@ -592,11 +487,11 @@ class ZiGate(commands_helpers.Mixin, attributes_helpers.Mixin):
 
         # No handling for this type of message
         else:
-            ZGT_LOG.debug('RESPONSE %s : Unknown Message' % msg_type.decode())
+            ZGT_LOG.debug('RESPONSE {:04x} : Unknown Message'.format(msg_type))
             ZGT_LOG.debug('  - After decoding  : {}'.format(hexlify(data)))
-            ZGT_LOG.debug('  - MsgType         : {}'.format(msg_type))
-            ZGT_LOG.debug('  - MsgLength       : {}'.format(hexlify(data[2:4])))
-            ZGT_LOG.debug('  - ChkSum          : {}'.format(hexlify(data[4:5])))
+            ZGT_LOG.debug('  - MsgType         : {:04x}'.format(msg_type))
+            ZGT_LOG.debug('  - MsgLength       : {}'.format(msg_type))
+            ZGT_LOG.debug('  - ChkSum          : {}'.format(msg_crc))
             ZGT_LOG.debug('  - Data            : {}'.format(hexlify(msg_data)))
-            ZGT_LOG.debug('  - RSSI            : {}'.format(hexlify(data[-1:])))
+            ZGT_LOG.debug('  - RSSI            : {}'.format(msg_rssi))
 
