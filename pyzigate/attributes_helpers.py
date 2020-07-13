@@ -63,10 +63,10 @@ class Mixin:
             ZGT_LOG.info('  * General: On/Off')
             if attribute_id == b'0000':
                 if hexlify(attribute_data) == b'00':
-                    self.set_device_property(device_addr, endpoint, ZGT_STATE, ZGT_STATE_ON)
+                    self.set_device_property(device_addr, endpoint, ZGT_STATE, ZGT_STATE_OFF)
                     ZGT_LOG.info('  * Closed/Taken off/Press')
                 else:
-                    self.set_device_property(device_addr, endpoint, ZGT_STATE, ZGT_STATE_OFF)
+                    self.set_device_property(device_addr, endpoint, ZGT_STATE, ZGT_STATE_ON)
                     ZGT_LOG.info('  * Open/Release button')
             elif attribute_id == b'8000':
                 clicks = int(hexlify(attribute_data), 16)
